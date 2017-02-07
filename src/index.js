@@ -8,16 +8,15 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
-var zlib = require ('zlib');
-var http = require ('httpreq');
-var parsexml = require ('nodexml') .xml2obj;
+const zlib = require('zlib')
+const http = require('httpreq')
+const parsexml = require('nodexml').xml2obj
 
-var config = {
+const config = {
   username: '',
   password: '',
   timeout: 5000
-};
-
+}
 
 /**
  * Make an error
@@ -30,13 +29,12 @@ var config = {
  */
 
 function makeError (message, key, err, code) {
-  var error = new Error (message);
+  const error = new Error(message)
 
-  error.statusCode = code;
-  error [key] = err;
-  return error;
+  error.statusCode = code
+  error[key] = err
+  return error
 }
-
 
 /**
  * Strip a key from an object
@@ -47,21 +45,20 @@ function makeError (message, key, err, code) {
  */
 
 function objectOmit (obj, key) {
-  var i;
+  let i
 
   if (obj instanceof Object) {
     for (i in obj) {
       if (i === key) {
-        delete obj [i];
+        delete obj[i]
       } else {
-        obj [i] = objectOmit (obj [i], key);
+        obj[i] = objectOmit(obj[i], key)
       }
     }
   }
 
-  return obj;
+  return obj
 }
-
 
 /**
  * Process decoded data
@@ -72,36 +69,35 @@ function objectOmit (obj, key) {
  */
 
 function processData (data, callback) {
-  data = data.replace (/&#039;/g, '\'');
+  data = data.replace(/&#039;/g, '\'')
 
   // parse xml
   try {
-    data = parsexml (data);
-    data = objectOmit (data, '@');
+    data = parsexml(data)
+    data = objectOmit(data, '@')
   } catch (e) {
-    return callback (makeError ('invalid response', 'body', data));
+    return callback(makeError('invalid response', 'body', data))
   }
 
   // parse API error
   if (data.error) {
-    return callback (makeError ('API error', 'api', data.error));
+    return callback(makeError('API error', 'api', data.error))
   }
 
   try {
-    if (data ['soap:Envelope'] ['soap:Body'] ['soap:Fault'] .faultcode) {
-      return callback (makeError ('API error', 'api', {
-        code: data ['soap:Envelope'] ['soap:Body'] ['soap:Fault'] .faultcode,
-        message: data ['soap:Envelope'] ['soap:Body'] ['soap:Fault'] .faultstring
-      }));
+    if (data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode) {
+      return callback(makeError('API error', 'api', {
+        code: data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode,
+        message: data['soap:Envelope']['soap:Body']['soap:Fault'].faultstring
+      }))
     }
   } catch (e) {
     // skip
   }
 
   // all good
-  return callback (null, data);
+  return callback(null, data)
 }
-
 
 /**
  * Process talk() response
@@ -113,28 +109,27 @@ function processData (data, callback) {
  */
 
 function httpResponse (err, res, callback) {
-  var data = res && res.body || '';
+  let data = res && res.body || ''
 
   // request error
   if (err) {
-    return callback (makeError ('request failed', 'error', err, null));
+    return callback(makeError('request failed', 'error', err, null))
   }
 
   // gzip decoding
-  if (res.headers ['content-encoding'] === 'gzip') {
-    zlib.gunzip (data, function (zErr, zData) {
+  if (res.headers['content-encoding'] === 'gzip') {
+    zlib.gunzip(data, function (zErr, zData) {
       if (zErr) {
-        return callback (makeError ('unexpected response', 'error', zErr, res.statusCode));
+        return callback(makeError('unexpected response', 'error', zErr, res.statusCode))
       }
 
-      data = zData.toString ('utf8');
-      return processData (data, callback);
-    });
+      data = zData.toString('utf8')
+      return processData(data, callback)
+    })
   }
 
-  return null;
+  return null
 }
-
 
 /**
  * Communication with API
@@ -145,8 +140,8 @@ function httpResponse (err, res, callback) {
  */
 
 function httpRequest (method, params, callback) {
-  var i;
-  var options = {
+  let i
+  const options = {
     url: 'https://webservices.ns.nl/ns-api-' + method,
     method: 'GET',
     timeout: config.timeout,
@@ -157,31 +152,30 @@ function httpRequest (method, params, callback) {
       'Accept-Encoding': 'gzip',
       'User-Agent': 'nsapi.js (https://github.com/fvdm/nodejs-ns-api)'
     }
-  };
+  }
 
   // params is optional
   if (typeof params === 'function') {
-    callback = params;
-    params = {};
+    callback = params
+    params = {}
   }
 
   // build parameters
-  if (Object.keys (params) .length) {
+  if (Object.keys(params).length) {
     for (i in params) {
-      if (typeof params [i] === 'boolean') {
-        params [i] = params [i] ? 'true' : 'false';
+      if (typeof params[i] === 'boolean') {
+        params[i] = params[i] ? 'true' : 'false'
       }
     }
 
-    options.parameters = params;
+    options.parameters = params
   }
 
   // do request
-  http.doRequest (options, function (err, res) {
-    httpResponse (err, res, callback);
-  });
+  http.doRequest(options, function (err, res) {
+    httpResponse(err, res, callback)
+  })
 }
-
 
 /**
  * Vertrektijden - departure times
@@ -193,32 +187,31 @@ function httpRequest (method, params, callback) {
  */
 
 function methodVertrektijden (station, callback) {
-  httpRequest ('avt', { station: station }, function (err, data) {
-    var i;
+  httpRequest('avt', { station: station }, function (err, data) {
+    let i
 
     if (err) {
-      return callback (err);
+      return callback(err)
     }
 
     if (!data.ActueleVertrekTijden || !data.ActueleVertrekTijden.VertrekkendeTrein) {
-      return callback (makeError ('unexpected response', 'data', data));
+      return callback(makeError('unexpected response', 'data', data))
     }
 
-    data = data.ActueleVertrekTijden.VertrekkendeTrein;
+    data = data.ActueleVertrekTijden.VertrekkendeTrein
 
     if (data.RitNummer) {
-      return callback (null, [data]);
+      return callback(null, [data])
     }
 
     for (i in data) {
-      data [i] .VertrekSpoorWijziging = data [i] .VertrekSpoor.wijziging === 'true';
-      data [i] .VertrekSpoor = data [i] .VertrekSpoor ['@text'];
+      data[i].VertrekSpoorWijziging = data[i].VertrekSpoor.wijziging === 'true'
+      data[i].VertrekSpoor = data[i].VertrekSpoor['@text']
     }
 
-    return callback (null, data);
-  });
+    return callback(null, data)
+  })
 }
-
 
 /**
  * Prijzen - tariffs
@@ -230,9 +223,8 @@ function methodVertrektijden (station, callback) {
  */
 
 function methodPrijzen (params, callback) {
-  httpRequest ('prijzen-v3', params, callback);
+  httpRequest('prijzen-v3', params, callback)
 }
-
 
 /**
  * Clean up ReisDeel
@@ -242,50 +234,49 @@ function methodPrijzen (params, callback) {
  */
 
 function cleanupReisDeel (data) {
-  var reis;
-  var deel;
-  var stop;
-  var r;
-  var d;
-  var s;
+  let reis
+  let deel
+  let stop
+  let r
+  let d
+  let s
 
-  data = data.ReisMogelijkheden.ReisMogelijkheid;
+  data = data.ReisMogelijkheden.ReisMogelijkheid
 
   if (!(data instanceof Array)) {
-    data = [data];
+    data = [data]
   }
 
   if (data.length) {
     for (r in data) {
-      reis = data [r];
+      reis = data[r]
 
       if (!(reis.ReisDeel instanceof Array)) {
-        reis.ReisDeel = [reis.ReisDeel];
+        reis.ReisDeel = [reis.ReisDeel]
       }
 
       for (d in reis.ReisDeel) {
-        deel = reis.ReisDeel [d];
+        deel = reis.ReisDeel[d]
 
         for (s in deel.ReisStop) {
-          stop = deel.ReisStop [s];
+          stop = deel.ReisStop[s]
 
           if (stop.Spoor) {
-            stop.SpoorWijziging = stop.Spoor.wijziging === 'true';
-            stop.Spoor = stop.Spoor ['@text'];
-            deel.ReisStop [s] = stop;
+            stop.SpoorWijziging = stop.Spoor.wijziging === 'true'
+            stop.Spoor = stop.Spoor['@text']
+            deel.ReisStop[s] = stop
           }
         }
 
-        reis.ReisDeel [d] = deel;
+        reis.ReisDeel[d] = deel
       }
 
-      data [r] = reis;
+      data[r] = reis
     }
   }
 
-  return data;
+  return data
 }
-
 
 /**
  * Reisadvies - travel advise
@@ -297,20 +288,19 @@ function cleanupReisDeel (data) {
  */
 
 function methodReisadvies (params, callback) {
-  httpRequest ('treinplanner', params, function (err, data) {
+  httpRequest('treinplanner', params, function (err, data) {
     if (err) {
-      return callback (err);
+      return callback(err)
     }
 
     if (!data.ReisMogelijkheden || !data.ReisMogelijkheden.ReisMogelijkheid) {
-      return callback (makeError ('unexpected response', 'data', data));
+      return callback(makeError('unexpected response', 'data', data))
     }
 
-    data = cleanupReisDeel (data);
-    return callback (null, data);
-  });
+    data = cleanupReisDeel(data)
+    return callback(null, data)
+  })
 }
-
 
 /**
  * Clean up station object
@@ -320,15 +310,14 @@ function methodReisadvies (params, callback) {
  */
 
 function cleanupStation (station) {
-  station.Synoniemen = station.Synoniemen && station.Synoniemen.Synoniem || [];
+  station.Synoniemen = station.Synoniemen && station.Synoniemen.Synoniem || []
 
   if (typeof station.Synoniemen === 'string') {
-    station.Synoniemen = [station.Synoniemen];
+    station.Synoniemen = [station.Synoniemen]
   }
 
-  return station;
+  return station
 }
-
 
 /**
  * Build stations tree
@@ -339,43 +328,42 @@ function cleanupStation (station) {
  */
 
 function buildStationsTree (data, treeKey) {
-  var station;
-  var tree = {};
-  var i;
+  let station
+  let tree = {}
+  let i
 
   // make an array with stations
   if (treeKey === false) {
-    tree = [];
+    tree = []
   }
 
   // shorten data
-  data = data.Stations.Station;
+  data = data.Stations.Station
 
   // iterate stations
   for (i in data) {
-    station = cleanupStation (data [i]);
+    station = cleanupStation(data[i])
 
     if (treeKey === false) {
-      tree.push (station);
-      break;
+      tree.push(station)
+      break
     }
 
     if (treeKey === 'code') {
-      tree [station.Code] = station;
-    } else if (!station [treeKey]) {
-      return new Error ('key not found in station');
+      tree[station.Code] = station
+    } else if (!station[treeKey]) {
+      return new Error('key not found in station')
     }
 
-    if (!tree [station [treeKey]]) {
-      tree [station [treeKey]] = {};
+    if (!tree[station[treeKey]]) {
+      tree[station[treeKey]] = {}
     }
 
-    tree [station [treeKey]] [station.Code] = station;
+    tree[station[treeKey]][station.Code] = station
   }
 
-  return tree;
+  return tree
 }
-
 
 /**
  * List available stations
@@ -387,31 +375,29 @@ function buildStationsTree (data, treeKey) {
 
 function methodStations (treeKey, callback) {
   if (typeof treeKey === 'function') {
-    callback = treeKey;
-    treeKey = 'code';
+    callback = treeKey
+    treeKey = 'code'
   }
 
-  httpRequest ('stations-v2', function (err, data) {
-    var tree;
+  httpRequest('stations-v2', function (err, data) {
 
     if (err) {
-      return callback (err);
+      return callback(err)
     }
 
     if (!data.Stations.Station) {
-      return callback (makeError ('unexpected response', 'data', data));
+      return callback(makeError('unexpected response', 'data', data))
     }
 
-    tree = buildStationsTree (data, treeKey);
+    const tree = buildStationsTree(data, treeKey)
 
     if (!tree) {
-      return callback (tree);
+      return callback(tree)
     }
 
-    return callback (null, tree);
-  });
+    return callback(null, tree)
+  })
 }
-
 
 /**
  * Clean up storingen
@@ -421,23 +407,22 @@ function methodStations (treeKey, callback) {
  */
 
 function cleanupStoringen (data) {
-  var storingen = {};
+  const storingen = {}
 
-  storingen.Gepland = data.Storingen.Gepland.Storing || [];
-  storingen.Ongepland = data.Storingen.Ongepland.Storing || [];
+  storingen.Gepland = data.Storingen.Gepland.Storing || []
+  storingen.Ongepland = data.Storingen.Ongepland.Storing || []
 
   // if object or string convert to array
-  if (!Array.isArray (storingen.Gepland)) {
-    storingen.Gepland = [storingen.Gepland];
+  if (!Array.isArray(storingen.Gepland)) {
+    storingen.Gepland = [storingen.Gepland]
   }
 
-  if (!Array.isArray (storingen.Ongepland)) {
-    storingen.Ongepland = [storingen.Ongepland];
+  if (!Array.isArray(storingen.Ongepland)) {
+    storingen.Ongepland = [storingen.Ongepland]
   }
 
-  return storingen;
+  return storingen
 }
-
 
 /**
  * List disruptions
@@ -449,22 +434,21 @@ function cleanupStoringen (data) {
 
 function methodStoringen (params, callback) {
   if (typeof params === 'function') {
-    callback = params;
+    callback = params
     params = {
       actual: true
-    };
+    }
   }
 
-  httpRequest ('storingen', params, function (err, data) {
+  httpRequest('storingen', params, function (err, data) {
     if (err) {
-      return callback (err);
+      return callback(err)
     }
 
-    data = cleanupStoringen (data);
-    return callback (null, data);
-  });
+    data = cleanupStoringen(data)
+    return callback(null, data)
+  })
 }
-
 
 /**
  * Module configuration
@@ -478,9 +462,9 @@ function methodStoringen (params, callback) {
 
 function setup (conf) {
   if (conf instanceof Object) {
-    config.username = conf.username || null;
-    config.password = conf.password || null;
-    config.timeout = conf.timeout || config.timeout;
+    config.username = conf.username || null
+    config.password = conf.password || null
+    config.timeout = conf.timeout || config.timeout
   }
 
   return {
@@ -489,7 +473,7 @@ function setup (conf) {
     prijzen: methodPrijzen,
     stations: methodStations,
     storingen: methodStoringen
-  };
+  }
 }
 
-module.exports = setup;
+module.exports = setup

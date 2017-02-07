@@ -10,6 +10,15 @@ env:
   node: true
 rules:
   max-len:
-  - warn
-  - code: 100
-    ignoreUrls: true
+    - warn
+    - code: 100
+      ignoreUrls: true
+  no-var: error
+  prefer-const:
+    - error
+    - destructuring: all
+      ignoreReadBeforeAssign: true
+  no-restricted-imports:
+    - error
+    - lodash
+    - underscore

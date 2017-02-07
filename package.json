@@ -23,7 +23,8 @@
   "tonicExampleFilename": "example.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "echo \"Error: no linter configured\" && exit 1"
+    "lint": "eslint src",
+    "lint:fix": "eslint --fix ./src"
   },
   "dependencies": {
     "babel-runtime": "^6.22.0",
