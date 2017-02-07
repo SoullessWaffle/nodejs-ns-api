@@ -1,0 +1,15 @@
+---
+root: true
+parser: babel-eslint
+parserOptions:
+  sourceType: module
+extends: standard
+settings:
+  import/resolver: webpack
+env:
+  node: true
+rules:
+  max-len:
+  - warn
+  - code: 100
+    ignoreUrls: true
