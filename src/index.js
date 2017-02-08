@@ -82,10 +82,6 @@ class NsApi {
    * @returns {Promise} - A Promise containing the processed response data
    */
   processData (rawData) {
-    // TODO: check if this replace is still necessary
-    rawData = rawData.replace(/&#039;/g, '\'')
-
-    // parse xml
     return parseXml(rawData, {
       explicitArray: false,
       tagNameProcessors: [camelCase, t],
@@ -179,6 +175,9 @@ class NsApi {
         if (entry[t('routeTekst')] != null) {
           entry[t('route')] = entry[t('routeTekst')].split(', ')
         }
+
+        // TODO: handle 'opmerkingen'
+
         return entry
       }, data)
     })
