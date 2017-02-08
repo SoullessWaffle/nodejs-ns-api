@@ -8,24 +8,37 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
+import moment from 'moment'
 import joi from 'joi'
 import R from 'ramda'
 import Promise from 'bluebird'
 import axios from 'axios'
-import { xml2obj as parseXml } from 'nodexml'
-import { NsApiError, booleanToString, asArray } from './helpers'
+import { parseString } from 'xml2js'
+import {
+  asArray,
+  booleanToString,
+  NsApiError,
+  parseBoolean,
+  parseIsoDate
+} from './helpers'
+
+const parseXml = Promise.promisify(parseString)
 
 const configSchema = joi.object({
-  username: joi.string().required(),
-  password: joi.string().required(),
+  auth: joi.object({
+    username: joi.string().required(),
+    password: joi.string().required()
+  }),
   timeout: joi.number().integer().min(0).default(5000),
-  apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-')
+  apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
+  momentDates: joi.bool().default(false)
 })
 
 class NsApi {
   constructor (config) {
     const { error, value } = joi.validate(config, configSchema)
     if (error != null) {
+      // TODO: wrap this in an actual error
       throw error
     }
 
@@ -35,52 +48,72 @@ class NsApi {
     this.apiRequest = this.apiRequest.bind(this)
     this.processData = this.processData.bind(this)
     this.vertrekTijden = this.vertrekTijden.bind(this)
+    this.normalizeDate = this.normalizeDate.bind(this)
+  }
+
+  /**
+   * Normalize a date to either a moment date
+   * or a js date object depending on the config
+   *
+   * @param {Date|Moment|String} date
+   * @returns {Date|Moment} The normalized date
+   */
+  normalizeDate (date) {
+    const { momentDates } = this.config
+    const isMoment = moment.isMoment(date)
+
+    // if the date type matches the config, return it as-is
+    if (isMoment === momentDates) return date
+
+    // if the date is a moment date but the
+    // config requires normal dates, convert it
+    if (isMoment && !momentDates) return date.toDate()
+
+    // Otherwise convert it to a moment date
+    return moment(date)
   }
 
   /**
    * Process API response data
    *
-   * @param {any} data - The API response data
+   * @param {any} rawData - The raw API response data
    * @returns {Promise} - A Promise containing the processed response data
    */
-  processData (data) {
-    return new Promise((resolve, reject) => {
-      // console.log('API response data:', data)
+  processData (rawData) {
+    // TODO: check if this replace is still necessary
+    rawData = rawData.replace(/&#039;/g, '\'')
 
-      data = data.replace(/&#039;/g, '\'')
-
-      // parse xml
-      try {
-        data = R.dissoc('@', parseXml(data))
-      } catch (e) {
-        reject(new NsApiError('Invalid API response', data))
-        return
-      }
-
-      // parse API error
-      if (data.error) {
-        reject(new NsApiError('API error', data.error))
-        return
-      }
-
-
-      try {
-        // TODO: test this
-        const { faultcode, faultstring } = data['soap:Envelope']['soap:Body']['soap:Fault']
-        if (faultcode) {
-          reject(new NsApiError('API error', {
-            code: faultcode,
-            message: faultstring
-          }))
-          return
-        }
-      } catch (e) {
-        // skip
-      }
-
-      // all good
-      resolve(data)
+    // parse xml
+    return parseXml(rawData, {
+      explicitArray: false
     })
+      .catch(err => {
+        throw new NsApiError('Invalid API response', { rawData, err })
+      })
+      .then(data => {
+        console.log('API response data:', data)
+
+        // parse API error
+        if (data.error) {
+          throw new NsApiError('API error', data.error)
+        }
+
+        try {
+          // TODO: test this
+          const { faultcode, faultstring } = data['soap:Envelope']['soap:Body']['soap:Fault']
+          if (faultcode) {
+            throw new NsApiError('API error', {
+              code: faultcode,
+              message: faultstring
+            })
+          }
+        } catch (err) {
+          // ignore only TypeErrors
+          if (!(err instanceof TypeError)) throw err
+        }
+
+        return data
+      })
   }
 
   /**
@@ -92,8 +125,7 @@ class NsApi {
    */
   apiRequest (endpoint, params = {}) {
     const {
-      username,
-      password,
+      auth,
       timeout,
       apiBasePath
     } = this.config
@@ -102,10 +134,7 @@ class NsApi {
 
     const options = {
       timeout,
-      auth: {
-        username,
-        password
-      },
+      auth,
       headers: {
         'Accept': 'text/xml; charset=UTF-8',
         'Accept-Encoding': 'gzip',
@@ -138,8 +167,12 @@ class NsApi {
       data = asArray(data.ActueleVertrekTijden.VertrekkendeTrein)
 
       return R.map((entry) => {
-        entry.VertrekSpoorWijziging = Boolean(entry.VertrekSpoor.wijziging)
-        entry.VertrekSpoor = entry.VertrekSpoor['@text']
+        entry.VertrekTijd = this.normalizeDate(parseIsoDate(entry.VertrekTijd))
+        entry.VertrekSpoorWijziging = parseBoolean(entry.VertrekSpoor['$'].wijziging)
+        entry.VertrekSpoor = entry.VertrekSpoor['_']
+        if (entry.RouteTekst != null) {
+          entry.Route = entry.RouteTekst.split(', ')
+        }
         return entry
       }, data)
     })
