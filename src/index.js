@@ -65,11 +65,12 @@ class NsApi {
 
 
       try {
-        // XXX: what does this do?
-        if (data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode) {
+        // TODO: test this
+        const { faultcode, faultstring } = data['soap:Envelope']['soap:Body']['soap:Fault']
+        if (faultcode) {
           reject(new NsApiError('API error', {
-            code: data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode,
-            message: data['soap:Envelope']['soap:Body']['soap:Fault'].faultstring
+            code: faultcode,
+            message: faultstring
           }))
           return
         }
