@@ -8,472 +8,378 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
-const zlib = require('zlib')
-const http = require('httpreq')
-const parsexml = require('nodexml').xml2obj
+import joi from 'joi'
+import R from 'ramda'
+import Promise from 'bluebird'
+import axios from 'axios'
+import { xml2obj as parseXml } from 'nodexml'
+import { NsApiError, booleanToString, asArray } from './helpers'
 
-const config = {
-  username: '',
-  password: '',
-  timeout: 5000
-}
+const configSchema = joi.object({
+  username: joi.string().required(),
+  password: joi.string().required(),
+  timeout: joi.number().integer().min(0).default(5000),
+  apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-')
+})
 
-/**
- * Make an error
- *
- * @param message {string} - Error.message
- * @param key {string} - Error [key] = err
- * @param err {Error, null} - Error [key] = err
- * @param code {string, number} - Error.code
- * @returns {Error} - The generated error
- */
-
-function makeError (message, key, err, code) {
-  const error = new Error(message)
-
-  error.statusCode = code
-  error[key] = err
-  return error
-}
-
-/**
- * Strip a key from an object
- *
- * @param obj {object} - Object to alter
- * @param key {string} - Key to remove
- * @returns {object}
- */
-
-function objectOmit (obj, key) {
-  let i
-
-  if (obj instanceof Object) {
-    for (i in obj) {
-      if (i === key) {
-        delete obj[i]
-      } else {
-        obj[i] = objectOmit(obj[i], key)
-      }
+class NsApi {
+  constructor (config) {
+    const { error, value } = joi.validate(config, configSchema)
+    if (error != null) {
+      throw error
     }
+
+    this.config = value
+
+    // Bind this for event handlers
+    this.apiRequest = this.apiRequest.bind(this)
+    this.processData = this.processData.bind(this)
+    this.vertrekTijden = this.vertrekTijden.bind(this)
   }
 
-  return obj
-}
+  /**
+   * Process API response data
+   *
+   * @param {any} data - The API response data
+   * @returns {Promise} - A Promise containing the processed response data
+   */
+  processData (data) {
+    return new Promise((resolve, reject) => {
+      // console.log('API response data:', data)
 
-/**
- * Process decoded data
- *
- * @param data {string} - Response data string
- * @param callback {function} - `function (err, data) {}`
- * @returns {void}
- */
+      data = data.replace(/&#039;/g, '\'')
 
-function processData (data, callback) {
-  data = data.replace(/&#039;/g, '\'')
-
-  // parse xml
-  try {
-    data = parsexml(data)
-    data = objectOmit(data, '@')
-  } catch (e) {
-    return callback(makeError('invalid response', 'body', data))
-  }
-
-  // parse API error
-  if (data.error) {
-    return callback(makeError('API error', 'api', data.error))
-  }
-
-  try {
-    if (data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode) {
-      return callback(makeError('API error', 'api', {
-        code: data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode,
-        message: data['soap:Envelope']['soap:Body']['soap:Fault'].faultstring
-      }))
-    }
-  } catch (e) {
-    // skip
-  }
-
-  // all good
-  return callback(null, data)
-}
-
-/**
- * Process talk() response
- *
- * @param err {Error,null} - httpreq error
- * @param res {object} - Response resource
- * @param callback {function} - `function (err, data) {}`
- * @returns {void}
- */
-
-function httpResponse (err, res, callback) {
-  let data = res && res.body || ''
-
-  // request error
-  if (err) {
-    return callback(makeError('request failed', 'error', err, null))
-  }
-
-  // gzip decoding
-  if (res.headers['content-encoding'] === 'gzip') {
-    zlib.gunzip(data, function (zErr, zData) {
-      if (zErr) {
-        return callback(makeError('unexpected response', 'error', zErr, res.statusCode))
+      // parse xml
+      try {
+        data = R.dissoc('@', parseXml(data))
+      } catch (e) {
+        reject(new NsApiError('Invalid API response', data))
+        return
       }
 
-      data = zData.toString('utf8')
-      return processData(data, callback)
+      // parse API error
+      if (data.error) {
+        reject(new NsApiError('API error', data.error))
+        return
+      }
+
+
+      try {
+        // XXX: what does this do?
+        if (data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode) {
+          reject(new NsApiError('API error', {
+            code: data['soap:Envelope']['soap:Body']['soap:Fault'].faultcode,
+            message: data['soap:Envelope']['soap:Body']['soap:Fault'].faultstring
+          }))
+          return
+        }
+      } catch (e) {
+        // skip
+      }
+
+      // all good
+      resolve(data)
     })
   }
 
-  return null
-}
+  /**
+   * Send a request to the API
+   *
+   * @param {String} endpoint - Part of request path `/ns-api-ENDPOINT_NAME`
+   * @param {Object} [params={}] - Request parameters
+   * @returns {Promise} - A Promise containing the processed response data
+   */
+  apiRequest (endpoint, params = {}) {
+    const {
+      username,
+      password,
+      timeout,
+      apiBasePath
+    } = this.config
 
-/**
- * Communication with API
- *
- * @param method {string} - Part of request path `/ns-api-METHOD_NAME`
- * @param [params] {object} - Request parameters
- * @param callback {function} - `function (err, data) {}`
- */
+    const url = apiBasePath + endpoint
 
-function httpRequest (method, params, callback) {
-  let i
-  const options = {
-    url: 'https://webservices.ns.nl/ns-api-' + method,
-    method: 'GET',
-    timeout: config.timeout,
-    binary: true,
-    auth: config.username + ':' + config.password,
-    headers: {
-      'Accept': 'text/xml; charset=UTF-8',
-      'Accept-Encoding': 'gzip',
-      'User-Agent': 'nsapi.js (https://github.com/fvdm/nodejs-ns-api)'
+    const options = {
+      timeout,
+      auth: {
+        username,
+        password
+      },
+      headers: {
+        'Accept': 'text/xml; charset=UTF-8',
+        'Accept-Encoding': 'gzip',
+        'User-Agent': 'nsapi.js (https://github.com/Soullesswaffle/nodejs-ns-api)'
+      },
+      params: R.map(booleanToString, params)
     }
+
+    // do request
+    return Promise.resolve(axios.get(url, options))
+      .catch((err) => {
+        throw new NsApiError('API request failed', err)
+      })
+      .then(res => this.processData(res.data))
   }
 
-  // params is optional
-  if (typeof params === 'function') {
-    callback = params
-    params = {}
-  }
+  /**
+   * Vertrektijden - departure times
+   *
+   * @param station {String} - Station ID
+   * @returns {Promise} - A promise containing a data object with departure times
+   */
 
-  // build parameters
-  if (Object.keys(params).length) {
-    for (i in params) {
-      if (typeof params[i] === 'boolean') {
-        params[i] = params[i] ? 'true' : 'false'
-      }
-    }
-
-    options.parameters = params
-  }
-
-  // do request
-  http.doRequest(options, function (err, res) {
-    httpResponse(err, res, callback)
-  })
-}
-
-/**
- * Vertrektijden - departure times
- *
- * @callback callback
- * @param station {string} - Station ID
- * @param callback {function} - `function (err, data) {}`
- * @returns {void}
- */
-
-function methodVertrektijden (station, callback) {
-  httpRequest('avt', { station: station }, function (err, data) {
-    let i
-
-    if (err) {
-      return callback(err)
-    }
-
-    if (!data.ActueleVertrekTijden || !data.ActueleVertrekTijden.VertrekkendeTrein) {
-      return callback(makeError('unexpected response', 'data', data))
-    }
-
-    data = data.ActueleVertrekTijden.VertrekkendeTrein
-
-    if (data.RitNummer) {
-      return callback(null, [data])
-    }
-
-    for (i in data) {
-      data[i].VertrekSpoorWijziging = data[i].VertrekSpoor.wijziging === 'true'
-      data[i].VertrekSpoor = data[i].VertrekSpoor['@text']
-    }
-
-    return callback(null, data)
-  })
-}
-
-/**
- * Prijzen - tariffs
- *
- * @callback callback
- * @param params {object} - Parameters
- * @param callback {function} - `function (err, data) {}`
- * @returns {void}
- */
-
-function methodPrijzen (params, callback) {
-  httpRequest('prijzen-v3', params, callback)
-}
-
-/**
- * Clean up ReisDeel
- *
- * @param data {array, object} - Data from .methodReisAdvies
- * @returns {array} - Converted data
- */
-
-function cleanupReisDeel (data) {
-  let reis
-  let deel
-  let stop
-  let r
-  let d
-  let s
-
-  data = data.ReisMogelijkheden.ReisMogelijkheid
-
-  if (!(data instanceof Array)) {
-    data = [data]
-  }
-
-  if (data.length) {
-    for (r in data) {
-      reis = data[r]
-
-      if (!(reis.ReisDeel instanceof Array)) {
-        reis.ReisDeel = [reis.ReisDeel]
+  vertrekTijden (station) {
+    return this.apiRequest('avt', { station }).then((data) => {
+      if (!data.ActueleVertrekTijden || !data.ActueleVertrekTijden.VertrekkendeTrein) {
+        throw new NsApiError('Unexpected API response', data)
       }
 
-      for (d in reis.ReisDeel) {
-        deel = reis.ReisDeel[d]
+      data = asArray(data.ActueleVertrekTijden.VertrekkendeTrein)
 
-        for (s in deel.ReisStop) {
-          stop = deel.ReisStop[s]
-
-          if (stop.Spoor) {
-            stop.SpoorWijziging = stop.Spoor.wijziging === 'true'
-            stop.Spoor = stop.Spoor['@text']
-            deel.ReisStop[s] = stop
-          }
-        }
-
-        reis.ReisDeel[d] = deel
-      }
-
-      data[r] = reis
-    }
-  }
-
-  return data
-}
-
-/**
- * Reisadvies - travel advise
- *
- * @callback callback
- * @param params {object} - Parameters
- * @param callback {function} - `function (err, data) {}`
- * @returns {void}
- */
-
-function methodReisadvies (params, callback) {
-  httpRequest('treinplanner', params, function (err, data) {
-    if (err) {
-      return callback(err)
-    }
-
-    if (!data.ReisMogelijkheden || !data.ReisMogelijkheden.ReisMogelijkheid) {
-      return callback(makeError('unexpected response', 'data', data))
-    }
-
-    data = cleanupReisDeel(data)
-    return callback(null, data)
-  })
-}
-
-/**
- * Clean up station object
- *
- * @param station {object} - Station from data
- * @returns {object} - Cleaned up station
- */
-
-function cleanupStation (station) {
-  station.Synoniemen = station.Synoniemen && station.Synoniemen.Synoniem || []
-
-  if (typeof station.Synoniemen === 'string') {
-    station.Synoniemen = [station.Synoniemen]
-  }
-
-  return station
-}
-
-/**
- * Build stations tree
- *
- * @param data {object} - Data from methodStations
- * @param [treeKey = Code] {string, boolean} - Group stations by station.key
- * @returns {object, array} - Array if `treeKey` == false, else an object
- */
-
-function buildStationsTree (data, treeKey) {
-  let station
-  let tree = {}
-  let i
-
-  // make an array with stations
-  if (treeKey === false) {
-    tree = []
-  }
-
-  // shorten data
-  data = data.Stations.Station
-
-  // iterate stations
-  for (i in data) {
-    station = cleanupStation(data[i])
-
-    if (treeKey === false) {
-      tree.push(station)
-      break
-    }
-
-    if (treeKey === 'code') {
-      tree[station.Code] = station
-    } else if (!station[treeKey]) {
-      return new Error('key not found in station')
-    }
-
-    if (!tree[station[treeKey]]) {
-      tree[station[treeKey]] = {}
-    }
-
-    tree[station[treeKey]][station.Code] = station
-  }
-
-  return tree
-}
-
-/**
- * List available stations
- *
- * @callback callback
- * @param [treeKey] {string} - Group by this key
- * @param callback {function} - `function (err, data) {}`
- */
-
-function methodStations (treeKey, callback) {
-  if (typeof treeKey === 'function') {
-    callback = treeKey
-    treeKey = 'code'
-  }
-
-  httpRequest('stations-v2', function (err, data) {
-
-    if (err) {
-      return callback(err)
-    }
-
-    if (!data.Stations.Station) {
-      return callback(makeError('unexpected response', 'data', data))
-    }
-
-    const tree = buildStationsTree(data, treeKey)
-
-    if (!tree) {
-      return callback(tree)
-    }
-
-    return callback(null, tree)
-  })
-}
-
-/**
- * Clean up storingen
- *
- * @param data {object} - Response data from methodStoringen
- * @returns {array} - Clean up array
- */
-
-function cleanupStoringen (data) {
-  const storingen = {}
-
-  storingen.Gepland = data.Storingen.Gepland.Storing || []
-  storingen.Ongepland = data.Storingen.Ongepland.Storing || []
-
-  // if object or string convert to array
-  if (!Array.isArray(storingen.Gepland)) {
-    storingen.Gepland = [storingen.Gepland]
-  }
-
-  if (!Array.isArray(storingen.Ongepland)) {
-    storingen.Ongepland = [storingen.Ongepland]
-  }
-
-  return storingen
-}
-
-/**
- * List disruptions
- *
- * @callback callback
- * @param params {object} - Parameters
- * @param callback {function} - `function (err, data) {}`
- */
-
-function methodStoringen (params, callback) {
-  if (typeof params === 'function') {
-    callback = params
-    params = {
-      actual: true
-    }
-  }
-
-  httpRequest('storingen', params, function (err, data) {
-    if (err) {
-      return callback(err)
-    }
-
-    data = cleanupStoringen(data)
-    return callback(null, data)
-  })
-}
-
-/**
- * Module configuration
- *
- * @param conf {object} - Configuration parameters
- * @param conf.username {string} - API username
- * @param conf.password {string} - API password
- * @param [conf.timeout] {number=5000} - Request time out in ms
- * @returns {object} - Interface methods
- */
-
-function setup (conf) {
-  if (conf instanceof Object) {
-    config.username = conf.username || null
-    config.password = conf.password || null
-    config.timeout = conf.timeout || config.timeout
-  }
-
-  return {
-    vertrektijden: methodVertrektijden,
-    reisadvies: methodReisadvies,
-    prijzen: methodPrijzen,
-    stations: methodStations,
-    storingen: methodStoringen
+      return R.map((entry) => {
+        entry.VertrekSpoorWijziging = Boolean(entry.VertrekSpoor.wijziging)
+        entry.VertrekSpoor = entry.VertrekSpoor['@text']
+        return entry
+      }, data)
+    })
   }
 }
 
-module.exports = setup
+export default NsApi
+
+// /**
+//  * Prijzen - tariffs
+//  *
+//  * @callback callback
+//  * @param params {object} - Parameters
+//  * @param callback {function} - `function (err, data) {}`
+//  * @returns {void}
+//  */
+
+// function methodPrijzen (params, callback) {
+//   httpRequest('prijzen-v3', params, callback)
+// }
+
+// /**
+//  * Clean up ReisDeel
+//  *
+//  * @param data {array, object} - Data from .methodReisAdvies
+//  * @returns {array} - Converted data
+//  */
+
+// function cleanupReisDeel (data) {
+//   let reis
+//   let deel
+//   let stop
+//   let r
+//   let d
+//   let s
+
+//   data = data.ReisMogelijkheden.ReisMogelijkheid
+
+//   if (!(data instanceof Array)) {
+//     data = [data]
+//   }
+
+//   if (data.length) {
+//     for (r in data) {
+//       reis = data[r]
+
+//       if (!(reis.ReisDeel instanceof Array)) {
+//         reis.ReisDeel = [reis.ReisDeel]
+//       }
+
+//       for (d in reis.ReisDeel) {
+//         deel = reis.ReisDeel[d]
+
+//         for (s in deel.ReisStop) {
+//           stop = deel.ReisStop[s]
+
+//           if (stop.Spoor) {
+//             stop.SpoorWijziging = stop.Spoor.wijziging === 'true'
+//             stop.Spoor = stop.Spoor['@text']
+//             deel.ReisStop[s] = stop
+//           }
+//         }
+
+//         reis.ReisDeel[d] = deel
+//       }
+
+//       data[r] = reis
+//     }
+//   }
+
+//   return data
+// }
+
+// /**
+//  * Reisadvies - travel advise
+//  *
+//  * @callback callback
+//  * @param params {object} - Parameters
+//  * @param callback {function} - `function (err, data) {}`
+//  * @returns {void}
+//  */
+
+// function methodReisadvies (params, callback) {
+//   httpRequest('treinplanner', params, function (err, data) {
+//     if (err) {
+//       return callback(err)
+//     }
+
+//     if (!data.ReisMogelijkheden || !data.ReisMogelijkheden.ReisMogelijkheid) {
+//       return callback(makeError('unexpected response', 'data', data))
+//     }
+
+//     data = cleanupReisDeel(data)
+//     return callback(null, data)
+//   })
+// }
+
+// /**
+//  * Clean up station object
+//  *
+//  * @param station {object} - Station from data
+//  * @returns {object} - Cleaned up station
+//  */
+
+// function cleanupStation (station) {
+//   station.Synoniemen = station.Synoniemen && station.Synoniemen.Synoniem || []
+
+//   if (typeof station.Synoniemen === 'string') {
+//     station.Synoniemen = [station.Synoniemen]
+//   }
+
+//   return station
+// }
+
+// /**
+//  * Build stations tree
+//  *
+//  * @param data {object} - Data from methodStations
+//  * @param [treeKey = Code] {string, boolean} - Group stations by station.key
+//  * @returns {object, array} - Array if `treeKey` == false, else an object
+//  */
+
+// function buildStationsTree (data, treeKey) {
+//   let station
+//   let tree = {}
+//   let i
+
+//   // make an array with stations
+//   if (treeKey === false) {
+//     tree = []
+//   }
+
+//   // shorten data
+//   data = data.Stations.Station
+
+//   // iterate stations
+//   for (i in data) {
+//     station = cleanupStation(data[i])
+
+//     if (treeKey === false) {
+//       tree.push(station)
+//       break
+//     }
+
+//     if (treeKey === 'code') {
+//       tree[station.Code] = station
+//     } else if (!station[treeKey]) {
+//       return new Error('key not found in station')
+//     }
+
+//     if (!tree[station[treeKey]]) {
+//       tree[station[treeKey]] = {}
+//     }
+
+//     tree[station[treeKey]][station.Code] = station
+//   }
+
+//   return tree
+// }
+
+// /**
+//  * List available stations
+//  *
+//  * @callback callback
+//  * @param [treeKey] {string} - Group by this key
+//  * @param callback {function} - `function (err, data) {}`
+//  */
+
+// function methodStations (treeKey, callback) {
+//   if (typeof treeKey === 'function') {
+//     callback = treeKey
+//     treeKey = 'code'
+//   }
+
+//   httpRequest('stations-v2', function (err, data) {
+
+//     if (err) {
+//       return callback(err)
+//     }
+
+//     if (!data.Stations.Station) {
+//       return callback(makeError('unexpected response', 'data', data))
+//     }
+
+//     const tree = buildStationsTree(data, treeKey)
+
+//     if (!tree) {
+//       return callback(tree)
+//     }
+
+//     return callback(null, tree)
+//   })
+// }
+
+// /**
+//  * Clean up storingen
+//  *
+//  * @param data {object} - Response data from methodStoringen
+//  * @returns {array} - Clean up array
+//  */
+
+// function cleanupStoringen (data) {
+//   const storingen = {}
+
+//   storingen.Gepland = data.Storingen.Gepland.Storing || []
+//   storingen.Ongepland = data.Storingen.Ongepland.Storing || []
+
+//   // if object or string convert to array
+//   if (!Array.isArray(storingen.Gepland)) {
+//     storingen.Gepland = [storingen.Gepland]
+//   }
+
+//   if (!Array.isArray(storingen.Ongepland)) {
+//     storingen.Ongepland = [storingen.Ongepland]
+//   }
+
+//   return storingen
+// }
+
+// /**
+//  * List disruptions
+//  *
+//  * @callback callback
+//  * @param params {object} - Parameters
+//  * @param callback {function} - `function (err, data) {}`
+//  */
+
+// function methodStoringen (params, callback) {
+//   if (typeof params === 'function') {
+//     callback = params
+//     params = {
+//       actual: true
+//     }
+//   }
+
+//   httpRequest('storingen', params, function (err, data) {
+//     if (err) {
+//       return callback(err)
+//     }
+
+//     data = cleanupStoringen(data)
+//     return callback(null, data)
+//   })
+// }

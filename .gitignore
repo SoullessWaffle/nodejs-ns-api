@@ -38,3 +38,4 @@ node_modules
 
 # Project-specific
 /dist
+/test/fixtures/auth.json

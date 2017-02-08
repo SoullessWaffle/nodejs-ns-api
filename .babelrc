@@ -13,6 +13,7 @@
         "regenerator": true,
         "helpers": false
       }
-    ]
+    ],
+    "ramda"
   ]
 }
