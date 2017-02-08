@@ -8,6 +8,7 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
+import camelCase from 'camel-case'
 import moment from 'moment'
 import joi from 'joi'
 import R from 'ramda'
@@ -19,7 +20,8 @@ import {
   booleanToString,
   NsApiError,
   parseBoolean,
-  parseIsoDate
+  parseIsoDate,
+  translate as t
 } from './helpers'
 
 const parseXml = Promise.promisify(parseString)
@@ -47,7 +49,7 @@ class NsApi {
     // Bind this for event handlers
     this.apiRequest = this.apiRequest.bind(this)
     this.processData = this.processData.bind(this)
-    this.vertrekTijden = this.vertrekTijden.bind(this)
+    this.departureTimes = this.departureTimes.bind(this)
     this.normalizeDate = this.normalizeDate.bind(this)
   }
 
@@ -85,14 +87,14 @@ class NsApi {
 
     // parse xml
     return parseXml(rawData, {
-      explicitArray: false
+      explicitArray: false,
+      tagNameProcessors: [camelCase, t],
+      attrNameProcessors: [camelCase, t]
     })
       .catch(err => {
         throw new NsApiError('Invalid API response', { rawData, err })
       })
       .then(data => {
-        console.log('API response data:', data)
-
         // parse API error
         if (data.error) {
           throw new NsApiError('API error', data.error)
@@ -152,26 +154,30 @@ class NsApi {
   }
 
   /**
-   * Vertrektijden - departure times
+   * Departure times
    *
    * @param station {String} - Station ID
    * @returns {Promise} - A promise containing a data object with departure times
    */
 
-  vertrekTijden (station) {
+  departureTimes (station) {
     return this.apiRequest('avt', { station }).then((data) => {
-      if (!data.ActueleVertrekTijden || !data.ActueleVertrekTijden.VertrekkendeTrein) {
+      if (!data.actueleVertrekTijden || !data.actueleVertrekTijden.vertrekkendeTrein) {
         throw new NsApiError('Unexpected API response', data)
       }
 
-      data = asArray(data.ActueleVertrekTijden.VertrekkendeTrein)
+      data = asArray(data.actueleVertrekTijden.vertrekkendeTrein)
 
       return R.map((entry) => {
-        entry.VertrekTijd = this.normalizeDate(parseIsoDate(entry.VertrekTijd))
-        entry.VertrekSpoorWijziging = parseBoolean(entry.VertrekSpoor['$'].wijziging)
-        entry.VertrekSpoor = entry.VertrekSpoor['_']
-        if (entry.RouteTekst != null) {
-          entry.Route = entry.RouteTekst.split(', ')
+        entry[t('vertrekTijd')] = this.normalizeDate(
+          parseIsoDate(entry[t('vertrekTijd')])
+        )
+        entry[t('vertrekSpoorWijziging')] = parseBoolean(
+          entry[t('vertrekSpoor')]['$'][t('wijziging')]
+        )
+        entry[t('vertrekSpoor')] = entry[t('vertrekSpoor')]['_']
+        if (entry[t('routeTekst')] != null) {
+          entry[t('route')] = entry[t('routeTekst')].split(', ')
         }
         return entry
       }, data)

@@ -1,5 +1,6 @@
 import R from 'ramda'
 import moment from 'moment'
+import strings from './strings.json'
 
 // See http://stackoverflow.com/a/32749533/1233003
 class ExtendableError extends Error {
@@ -54,3 +55,7 @@ export const asArray = R.unless(
   (x) => R.equals(R.type(x), 'Array'),
   (x) => [x]
 )
+
+export const translate = (key) => {
+  return strings[key] || key
+}

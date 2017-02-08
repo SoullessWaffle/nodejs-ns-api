@@ -4,10 +4,10 @@ const util = require('util')
 
 const ns = new NsApi({ auth })
 
-ns.vertrekTijden('Hilversum')
+ns.departureTimes('Hilversum')
   .then(data => {
     console.log('data', util.inspect(data, false, null))
   })
   .catch(err => {
-    console.error('error', err)
+    console.error(err, util.inspect(err.details, false, null))
   })

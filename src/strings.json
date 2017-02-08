@@ -1,0 +1,14 @@
+{
+  "eindBestemming": "destination",
+  "reisTip": "notice",
+  "ritNummer": "trainId",
+  "routeTekst": "routeText",
+  "treinSoort": "trainType",
+  "vertrekSpoor": "departingPlatform",
+  "vertrekSpoorWijziging": "departingPlatformChange",
+  "vertrekTijd": "departureTime",
+  "vertrekVertraging": "departureDelay",
+  "vertrekVertragingTekst": "departureDelayText",
+  "vervoerder": "carrier",
+  "wijziging": "change"
+}

@@ -35,7 +35,6 @@ const baseConfig = {
     // TODO: detect development/production
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production')
-      // '// axios.defaults.adapter = set by webpack': `axios.defaults.adapter =`,
     })
     // TODO: only in production
     // new webpack.optimize.UglifyJsPlugin({
@@ -58,15 +57,14 @@ const nodeConfig = merge.smart(baseConfig, {
   target: 'node',
   output: {
     filename: '[name].js'
-  }
-  // },
-  // plugins: [
-  //   // TODO: only in development
-  //   new webpack.BannerPlugin({
-  //     banner: `require('source-map-support').install();\n`,
-  //     raw: true
-  //   })
-  // ]
+  },
+  plugins: [
+    // TODO: only in development
+    new webpack.BannerPlugin({
+      banner: `require('source-map-support').install();\n`,
+      raw: true
+    })
+  ]
 })
 
 const browserConfig = merge.smart(baseConfig, {
