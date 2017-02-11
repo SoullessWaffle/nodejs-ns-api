@@ -21,6 +21,7 @@ import {
   NsApiError,
   parseBoolean,
   parseIsoDate,
+  processParams,
   translate
 } from './helpers'
 
@@ -40,7 +41,6 @@ class NsApi {
   constructor (config) {
     const { error, value } = joi.validate(config, configSchema)
     if (error != null) {
-      // TODO: wrap this in an actual error
       throw error
     }
 
@@ -57,10 +57,14 @@ class NsApi {
    * Normalize a date to either a moment date
    * or a js date object depending on the config
    *
-   * @param {Date|Moment|String} date
+   * @param {Date|Moment} date
    * @returns {Date|Moment} The normalized date
    */
+  // TODO: refactor this + parseIsoDate helper
   normalizeDate (date) {
+    // Ignore date strings
+    if (R.type(date) === 'String') return date
+
     const { momentDates } = this.config
     const isMoment = moment.isMoment(date)
 
@@ -78,7 +82,7 @@ class NsApi {
   /**
    * Process API response data
    *
-   * @param {any} rawData - The raw API response data
+   * @param {*} rawData - The raw API response data
    * @returns {Promise} - A Promise containing the processed response data
    */
   processData (rawData) {
@@ -154,7 +158,7 @@ class NsApi {
   /**
    * Departures
    *
-   * @param station {String} - Station ID
+   * @param {String} station - Station ID
    * @returns {Promise} - A promise containing a data object with departures
    */
   departures (station) {
@@ -190,6 +194,49 @@ class NsApi {
         return entry
       }, asArray(data.departures.departingTrain))
     })
+  }
+
+  /**
+   * Disruptions
+   *
+   * @param {Object} options - Options
+   * @returns {Promise}
+   */
+  disruptions (options) {
+    return processParams(joi.object({
+      station: joi.string().optional(),
+      actual: joi.boolean().optional(),
+      unplanned: joi.boolean().optional()
+    }), options)
+      .then((params) => {
+        // Flip unplanned option because the API is weird
+        if (R.type(params.unplanned) === 'Boolean') {
+          params.unplanned = !params.unplanned
+        }
+        return params
+      })
+      .then((params) => this.apiRequest('storingen', params))
+      .then((data) => {
+        const processDisruption = (disruption) => {
+          // Parse disruption date
+          if (disruption.date != null) {
+            disruption.date = this.normalizeDate(
+              parseIsoDate(disruption.date)
+            )
+          }
+
+          return disruption
+        }
+
+        const disruptions = {}
+
+        disruptions.planned = asArray(data.disruptions.planned.disruption)
+          .map(processDisruption)
+        disruptions.unplanned = asArray(data.disruptions.unplanned.disruption)
+          .map(processDisruption)
+
+        return disruptions
+      })
   }
 }
 
@@ -378,56 +425,5 @@ export default NsApi
 //     }
 
 //     return callback(null, tree)
-//   })
-// }
-
-// /**
-//  * Clean up storingen
-//  *
-//  * @param data {object} - Response data from methodStoringen
-//  * @returns {array} - Clean up array
-//  */
-
-// function cleanupStoringen (data) {
-//   const storingen = {}
-
-//   storingen.Gepland = data.Storingen.Gepland.Storing || []
-//   storingen.Ongepland = data.Storingen.Ongepland.Storing || []
-
-//   // if object or string convert to array
-//   if (!Array.isArray(storingen.Gepland)) {
-//     storingen.Gepland = [storingen.Gepland]
-//   }
-
-//   if (!Array.isArray(storingen.Ongepland)) {
-//     storingen.Ongepland = [storingen.Ongepland]
-//   }
-
-//   return storingen
-// }
-
-// /**
-//  * List disruptions
-//  *
-//  * @callback callback
-//  * @param params {object} - Parameters
-//  * @param callback {function} - `function (err, data) {}`
-//  */
-
-// function methodStoringen (params, callback) {
-//   if (typeof params === 'function') {
-//     callback = params
-//     params = {
-//       actual: true
-//     }
-//   }
-
-//   httpRequest('storingen', params, function (err, data) {
-//     if (err) {
-//       return callback(err)
-//     }
-
-//     data = cleanupStoringen(data)
-//     return callback(null, data)
 //   })
 // }

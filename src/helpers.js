@@ -1,5 +1,6 @@
 import R from 'ramda'
 import moment from 'moment'
+import joi from 'joi'
 import strings from './strings.json'
 
 // See http://stackoverflow.com/a/32749533/1233003
@@ -65,4 +66,10 @@ export const asArray = R.unless(
 
 export const translate = (key) => {
   return strings[key] || key
+}
+
+export const processParams = (schema, data) => {
+  const { error, value } = joi.validate(data, schema)
+  if (error != null) return Promise.reject(error)
+  return Promise.resolve(value)
 }
