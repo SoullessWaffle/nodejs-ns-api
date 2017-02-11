@@ -85,7 +85,9 @@ class NsApi {
     return parseXml(rawData, {
       explicitArray: false,
       tagNameProcessors: [camelCase, translate],
-      attrNameProcessors: [camelCase, translate]
+      attrNameProcessors: [camelCase, translate],
+      valueProcessors: [R.trim],
+      attrValueProcessors: [R.trim]
     })
       .catch(err => {
         throw new NsApiError('Invalid API response', { rawData, err })
@@ -155,31 +157,38 @@ class NsApi {
    * @param station {String} - Station ID
    * @returns {Promise} - A promise containing a data object with departure times
    */
-
   departureTimes (station) {
     return this.apiRequest('avt', { station }).then((data) => {
       if (!data.liveDepartures || !data.liveDepartures.departingTrain) {
         throw new NsApiError('Unexpected API response', data)
       }
 
-      data = asArray(data.liveDepartures.departingTrain)
-
       return R.map((entry) => {
+        // Parse departure time
         entry.departureTime = this.normalizeDate(
           parseIsoDate(entry.departureTime)
         )
+
+        // Process departing platform and whether it changed
         entry.departingPlatformChange = parseBoolean(
           entry.departingPlatform['$'].change
         )
         entry.departingPlatform = entry.departingPlatform['_']
+
+        // Parse route text to route array
         if (entry.routeText != null) {
-          entry.route = entry.routeText.split(', ')
+          entry.route = entry.routeText.split(', ').map(R.trim)
         }
 
-        // TODO: handle comments
+        // Process comments
+        if (entry.comments != null) {
+          entry.comments = asArray(entry.comments.comment)
+        }
+
+        // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
 
         return entry
-      }, data)
+      }, asArray(data.liveDepartures.departingTrain))
     })
   }
 }

@@ -1,6 +1,7 @@
 {
   "actueleVertrekTijden": "liveDepartures",
   "eindBestemming": "destination",
+  "opmerking": "comment",
   "opmerkingen": "comments",
   "reisTip": "notice",
   "ritNummer": "trainId",
