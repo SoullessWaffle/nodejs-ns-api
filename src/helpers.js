@@ -53,7 +53,14 @@ export const parseIsoDate = conditionalConvert(
 
 export const asArray = R.unless(
   (x) => R.equals(R.type(x), 'Array'),
-  (x) => [x]
+  R.ifElse(
+    // If x is null or undefined
+    (x) => x == null,
+    // Return an empty array
+    () => [],
+    // Else return the value in an array
+    (x) => [x]
+  )
 )
 
 export const translate = (key) => {
