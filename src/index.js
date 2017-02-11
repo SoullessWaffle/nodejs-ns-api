@@ -49,7 +49,7 @@ class NsApi {
     // Bind this for event handlers
     this.apiRequest = this.apiRequest.bind(this)
     this.processData = this.processData.bind(this)
-    this.departureTimes = this.departureTimes.bind(this)
+    this.departures = this.departures.bind(this)
     this.normalizeDate = this.normalizeDate.bind(this)
   }
 
@@ -152,14 +152,14 @@ class NsApi {
   }
 
   /**
-   * Departure times
+   * Departures
    *
    * @param station {String} - Station ID
-   * @returns {Promise} - A promise containing a data object with departure times
+   * @returns {Promise} - A promise containing a data object with departures
    */
-  departureTimes (station) {
+  departures (station) {
     return this.apiRequest('avt', { station }).then((data) => {
-      if (!data.liveDepartures || !data.liveDepartures.departingTrain) {
+      if (!data.departures || !data.departures.departingTrain) {
         throw new NsApiError('Unexpected API response', data)
       }
 
@@ -188,7 +188,7 @@ class NsApi {
         // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
 
         return entry
-      }, asArray(data.liveDepartures.departingTrain))
+      }, asArray(data.departures.departingTrain))
     })
   }
 }

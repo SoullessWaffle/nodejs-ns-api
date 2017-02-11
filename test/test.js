@@ -4,7 +4,7 @@ const util = require('util')
 
 const ns = new NsApi({ auth })
 
-ns.departureTimes('Hilversum')
+ns.departures('Hilversum')
   .then(data => {
     console.log('data', util.inspect(data, false, null))
   })

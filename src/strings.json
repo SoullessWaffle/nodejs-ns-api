@@ -1,5 +1,5 @@
 {
-  "actueleVertrekTijden": "liveDepartures",
+  "actueleVertrekTijden": "departures",
   "eindBestemming": "destination",
   "opmerking": "comment",
   "opmerkingen": "comments",
