@@ -1,9 +1,12 @@
 {
+  "actueleVertrekTijden": "liveDepartures",
   "eindBestemming": "destination",
+  "opmerkingen": "comments",
   "reisTip": "notice",
   "ritNummer": "trainId",
   "routeTekst": "routeText",
   "treinSoort": "trainType",
+  "vertrekkendeTrein": "departingTrain",
   "vertrekSpoor": "departingPlatform",
   "vertrekSpoorWijziging": "departingPlatformChange",
   "vertrekTijd": "departureTime",

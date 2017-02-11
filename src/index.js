@@ -21,7 +21,7 @@ import {
   NsApiError,
   parseBoolean,
   parseIsoDate,
-  translate as t
+  translate
 } from './helpers'
 
 const parseXml = Promise.promisify(parseString)
@@ -84,8 +84,8 @@ class NsApi {
   processData (rawData) {
     return parseXml(rawData, {
       explicitArray: false,
-      tagNameProcessors: [camelCase, t],
-      attrNameProcessors: [camelCase, t]
+      tagNameProcessors: [camelCase, translate],
+      attrNameProcessors: [camelCase, translate]
     })
       .catch(err => {
         throw new NsApiError('Invalid API response', { rawData, err })
@@ -158,25 +158,25 @@ class NsApi {
 
   departureTimes (station) {
     return this.apiRequest('avt', { station }).then((data) => {
-      if (!data.actueleVertrekTijden || !data.actueleVertrekTijden.vertrekkendeTrein) {
+      if (!data.liveDepartures || !data.liveDepartures.departingTrain) {
         throw new NsApiError('Unexpected API response', data)
       }
 
-      data = asArray(data.actueleVertrekTijden.vertrekkendeTrein)
+      data = asArray(data.liveDepartures.departingTrain)
 
       return R.map((entry) => {
-        entry[t('vertrekTijd')] = this.normalizeDate(
-          parseIsoDate(entry[t('vertrekTijd')])
+        entry.departureTime = this.normalizeDate(
+          parseIsoDate(entry.departureTime)
         )
-        entry[t('vertrekSpoorWijziging')] = parseBoolean(
-          entry[t('vertrekSpoor')]['$'][t('wijziging')]
+        entry.departingPlatformChange = parseBoolean(
+          entry.departingPlatform['$'].change
         )
-        entry[t('vertrekSpoor')] = entry[t('vertrekSpoor')]['_']
-        if (entry[t('routeTekst')] != null) {
-          entry[t('route')] = entry[t('routeTekst')].split(', ')
+        entry.departingPlatform = entry.departingPlatform['_']
+        if (entry.routeText != null) {
+          entry.route = entry.routeText.split(', ')
         }
 
-        // TODO: handle 'opmerkingen'
+        // TODO: handle comments
 
         return entry
       }, data)
