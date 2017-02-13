@@ -163,7 +163,7 @@ class NsApi {
    */
   departures (station) {
     return this.apiRequest('avt', { station }).then((data) => {
-      if (!R.view(departingTrain, data)) {
+      if (R.view(departingTrain, data) == null) {
         throw new NsApiError('Unexpected API response', data)
       }
 
