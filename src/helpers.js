@@ -40,7 +40,7 @@ export const booleanToString = R.when(
 export const parseBoolean = R.when(
   R.both(
     (x) => R.equals(R.type(x), 'String'),
-    R.partial(R.test, [/^(true|false)$/i])
+    R.test(/^(true|false)$/i)
   ),
   (x) => R.equals(R.toLower(x), 'true')
 )
