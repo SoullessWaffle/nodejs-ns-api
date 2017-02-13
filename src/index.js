@@ -24,6 +24,10 @@ import {
   processParams,
   translate
 } from './helpers'
+import {
+  departingTrain,
+  soapFault
+} from './lenses'
 
 const parseXml = Promise.promisify(parseString)
 
@@ -99,22 +103,17 @@ class NsApi {
       })
       .then(data => {
         // parse API error
-        if (data.error) {
+        if (data.error != null) {
           throw new NsApiError('API error', data.error)
         }
 
-        try {
-          // TODO: test this
-          const { faultcode, faultstring } = data['soap:Envelope']['soap:Body']['soap:Fault']
-          if (faultcode) {
-            throw new NsApiError('API error', {
-              code: faultcode,
-              message: faultstring
-            })
-          }
-        } catch (err) {
-          // ignore only TypeErrors
-          if (!(err instanceof TypeError)) throw err
+        // TODO: test this
+        const { faultcode, faultstring } = R.defaultTo({}, R.view(soapFault, data))
+        if (faultcode != null) {
+          throw new NsApiError('API error', {
+            code: faultcode,
+            message: faultstring
+          })
         }
 
         return data
@@ -164,7 +163,7 @@ class NsApi {
    */
   departures (station) {
     return this.apiRequest('avt', { station }).then((data) => {
-      if (!data.departures || !data.departures.departingTrain) {
+      if (!R.view(departingTrain, data)) {
         throw new NsApiError('Unexpected API response', data)
       }
 
