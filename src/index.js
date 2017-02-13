@@ -47,10 +47,11 @@ class NsApi {
     this.config = value
 
     // Bind this for event handlers
-    this.apiRequest = this.apiRequest.bind(this)
-    this.processData = this.processData.bind(this)
-    this.departures = this.departures.bind(this)
     this.normalizeDate = this.normalizeDate.bind(this)
+    this.processData = this.processData.bind(this)
+    this.apiRequest = this.apiRequest.bind(this)
+    this.departures = this.departures.bind(this)
+    this.disruptions = this.disruptions.bind(this)
   }
 
   /**
