@@ -1,16 +1,24 @@
 const path = require('path')
 const webpack = require('webpack')
 const merge = require('webpack-merge')
+const resolveConfig = require('../common/resolve')
+const fs = require('fs')
+const json5 = require('json5')
+const babelConfig = json5.parse(fs.readFileSync(path.resolve(__dirname, '.babelrc'), 'utf8'))
 
-const baseConfig = {
+/*
+ * Base configuration
+ */
+
+module.exports = merge.smart({
   // TODO: only in development?
+  target: 'web',
   devtool: 'source-map',
-  context: path.resolve(__dirname, 'src'),
-  entry: {
-    index: './index.js'
-  },
+  context: path.resolve(__dirname, '../../src'),
+  entry: './index.js',
   output: {
-    path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname, '../../dist'),
+    filename: 'index.browser.js',
     // TODO: only in development
     pathinfo: true,
     library: 'ns-api',
@@ -21,14 +29,12 @@ const baseConfig = {
       {
         test: /\.js$/,
         loader: 'babel-loader',
-        exclude: /node_modules/
+        exclude: /node_modules/,
+        options: merge.smart(babelConfig, {
+          babelrc: false
+        })
       }
     ]
-  },
-  resolve: {
-    alias: {
-      'joi$': 'joi-browser'
-    }
   },
   plugins: [
     // new webpack.NoEmitOnErrorsPlugin(),
@@ -51,30 +57,14 @@ const baseConfig = {
     ignored: /node_modules/
   },
   bail: true
-}
+}, resolveConfig)
 
-const nodeConfig = merge.smart(baseConfig, {
-  target: 'node',
-  output: {
-    filename: '[name].js'
-  },
-  plugins: [
-    // TODO: only in development
-    new webpack.BannerPlugin({
-      banner: `require('source-map-support').install();\n`,
-      raw: true
-    })
-  ]
-})
+/*
+ * Node configuration
+ */
 
-const browserConfig = merge.smart(baseConfig, {
-  target: 'web',
-  output: {
-    filename: '[name].browser.js'
-  }
-})
+// new webpack.BannerPlugin({
+//   banner: `require('source-map-support').install();\n`,
+//   raw: true
+// })
 
-module.exports = [
-  nodeConfig,
-  browserConfig
-]

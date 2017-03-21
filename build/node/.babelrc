@@ -1,0 +1,21 @@
+{
+  "presets": [
+    ["env", {
+      "targets": {
+        "node": "current"
+      },
+      "modules": false
+    }]
+  ],
+  "plugins": [
+    "transform-es2015-modules-commonjs",
+    // TODO: fix this, it doesn't seem to do anything
+    "add-module-exports",
+    ["webpack-alias", {
+      // This is relative to the root directory because babel-cli has trouble finding it otherwise
+      "config": "build/common/resolve.js"
+    }],
+    "ramda",
+    "node-source-map-support"
+  ]
+}
