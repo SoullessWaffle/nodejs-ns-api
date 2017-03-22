@@ -12,7 +12,7 @@ import camelCase from 'camel-case'
 import moment from 'moment'
 import joi from 'joi'
 import R from 'ramda'
-import Promise from 'bluebird'
+import pify from 'pify'
 import axios from 'axios'
 import { parseString } from 'xml2js'
 import {
@@ -29,7 +29,7 @@ import {
   soapFault
 } from './lenses'
 
-const parseXml = Promise.promisify(parseString)
+const parseXml = pify(parseString)
 
 const configSchema = joi.object({
   auth: joi.object({
@@ -90,34 +90,35 @@ class NsApi {
    * @param {*} rawData - The raw API response data
    * @returns {Promise} - A Promise containing the processed response data
    */
-  processData (rawData) {
-    return parseXml(rawData, {
-      explicitArray: false,
-      tagNameProcessors: [camelCase, translate],
-      attrNameProcessors: [camelCase, translate],
-      valueProcessors: [R.trim],
-      attrValueProcessors: [R.trim]
-    })
-      .catch(err => {
-        throw new NsApiError('Invalid API response', { rawData, err })
+  async processData (rawData) {
+    let data
+    try {
+      data = await parseXml(rawData, {
+        explicitArray: false,
+        tagNameProcessors: [camelCase, translate],
+        attrNameProcessors: [camelCase, translate],
+        valueProcessors: [R.trim],
+        attrValueProcessors: [R.trim]
       })
-      .then(data => {
-        // parse API error
-        if (data.error != null) {
-          throw new NsApiError('API error', data.error)
-        }
+    } catch (err) {
+      throw new NsApiError('Invalid API response', { rawData, err })
+    }
 
-        // TODO: test this
-        const { faultcode, faultstring } = R.defaultTo({}, R.view(soapFault, data))
-        if (faultcode != null) {
-          throw new NsApiError('API error', {
-            code: faultcode,
-            message: faultstring
-          })
-        }
+    // parse API error
+    if (data.error != null) {
+      throw new NsApiError('API error', data.error)
+    }
 
-        return data
+    // TODO: test this
+    const { faultcode, faultstring } = R.defaultTo({}, R.view(soapFault, data))
+    if (faultcode != null) {
+      throw new NsApiError('API error', {
+        code: faultcode,
+        message: faultstring
       })
+    }
+
+    return data
   }
 
   /**
@@ -127,7 +128,7 @@ class NsApi {
    * @param {Object} [params={}] - Request parameters
    * @returns {Promise} - A Promise containing the processed response data
    */
-  apiRequest (endpoint, params = {}) {
+  async apiRequest (endpoint, params = {}) {
     const {
       auth,
       timeout,
@@ -148,11 +149,14 @@ class NsApi {
     }
 
     // do request
-    return Promise.resolve(axios.get(url, options))
-      .catch((err) => {
-        throw new NsApiError('API request failed', err)
-      })
-      .then(res => this.processData(res.data))
+    let res
+    try {
+      res = await axios.get(url, options)
+    } catch (err) {
+      throw new NsApiError('API request failed', err)
+    }
+
+    return this.processData(res.data)
   }
 
   /**
@@ -161,39 +165,39 @@ class NsApi {
    * @param {String} station - Station ID
    * @returns {Promise} - A promise containing a data object with departures
    */
-  departures (station) {
-    return this.apiRequest('avt', { station }).then((data) => {
-      if (R.view(departingTrain, data) == null) {
-        throw new NsApiError('Unexpected API response', data)
+  async departures (station) {
+    const data = await this.apiRequest('avt', { station })
+
+    if (R.view(departingTrain, data) == null) {
+      throw new NsApiError('Unexpected API response', data)
+    }
+
+    return R.map((entry) => {
+      // Parse departure time
+      entry.departureTime = this.normalizeDate(
+        parseIsoDate(entry.departureTime)
+      )
+
+      // Process departing platform and whether it changed
+      entry.departingPlatformChange = parseBoolean(
+        entry.departingPlatform['$'].change
+      )
+      entry.departingPlatform = entry.departingPlatform['_']
+
+      // Parse route text to route array
+      if (entry.routeText != null) {
+        entry.route = entry.routeText.split(', ').map(R.trim)
       }
 
-      return R.map((entry) => {
-        // Parse departure time
-        entry.departureTime = this.normalizeDate(
-          parseIsoDate(entry.departureTime)
-        )
+      // Process comments
+      if (entry.comments != null) {
+        entry.comments = asArray(entry.comments.comment)
+      }
 
-        // Process departing platform and whether it changed
-        entry.departingPlatformChange = parseBoolean(
-          entry.departingPlatform['$'].change
-        )
-        entry.departingPlatform = entry.departingPlatform['_']
+      // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
 
-        // Parse route text to route array
-        if (entry.routeText != null) {
-          entry.route = entry.routeText.split(', ').map(R.trim)
-        }
-
-        // Process comments
-        if (entry.comments != null) {
-          entry.comments = asArray(entry.comments.comment)
-        }
-
-        // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
-
-        return entry
-      }, asArray(data.departures.departingTrain))
-    })
+      return entry
+    }, asArray(data.departures.departingTrain))
   }
 
   /**
@@ -202,41 +206,40 @@ class NsApi {
    * @param {Object} options - Options
    * @returns {Promise}
    */
-  disruptions (options) {
-    return processParams(joi.object({
+  async disruptions (options) {
+    const params = processParams(joi.object({
       station: joi.string().optional(),
       actual: joi.boolean().optional(),
       unplanned: joi.boolean().optional()
     }), options)
-      .then((params) => {
-        // Flip unplanned option because the API is weird
-        if (R.type(params.unplanned) === 'Boolean') {
-          params.unplanned = !params.unplanned
-        }
-        return params
-      })
-      .then((params) => this.apiRequest('storingen', params))
-      .then((data) => {
-        const processDisruption = (disruption) => {
-          // Parse disruption date
-          if (disruption.date != null) {
-            disruption.date = this.normalizeDate(
-              parseIsoDate(disruption.date)
-            )
-          }
 
-          return disruption
-        }
+    // Flip unplanned option because the API is weird
+    if (R.type(params.unplanned) === 'Boolean') {
+      params.unplanned = !params.unplanned
+    }
 
-        const disruptions = {}
+    const data = await this.apiRequest('storingen', params)
 
-        disruptions.planned = asArray(data.disruptions.planned.disruption)
-          .map(processDisruption)
-        disruptions.unplanned = asArray(data.disruptions.unplanned.disruption)
-          .map(processDisruption)
+    const processDisruption = (disruption) => {
+      // Parse disruption date
+      if (disruption.date != null) {
+        disruption.date = this.normalizeDate(
+          parseIsoDate(disruption.date)
+        )
+      }
 
-        return disruptions
-      })
+      return disruption
+    }
+
+    const disruptions = {}
+
+    // TODO: use lenses here
+    disruptions.planned = asArray(data.disruptions.planned.disruption)
+      .map(processDisruption)
+    disruptions.unplanned = asArray(data.disruptions.unplanned.disruption)
+      .map(processDisruption)
+
+    return disruptions
   }
 }
 

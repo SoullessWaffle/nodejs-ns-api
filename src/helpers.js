@@ -70,6 +70,8 @@ export const translate = (key) => {
 
 export const processParams = (schema, data) => {
   const { error, value } = joi.validate(data, schema)
-  if (error != null) return Promise.reject(error)
-  return Promise.resolve(value)
+
+  if (error != null) throw error
+
+  return value
 }
