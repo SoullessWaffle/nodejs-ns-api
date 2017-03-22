@@ -6,10 +6,6 @@ const fs = require('fs')
 const json5 = require('json5')
 const babelConfig = json5.parse(fs.readFileSync(path.resolve(__dirname, '.babelrc'), 'utf8'))
 
-/*
- * Base configuration
- */
-
 module.exports = merge.smart({
   // TODO: only in development?
   target: 'web',
@@ -37,7 +33,6 @@ module.exports = merge.smart({
     ]
   },
   plugins: [
-    // new webpack.NoEmitOnErrorsPlugin(),
     // TODO: detect development/production
     new webpack.DefinePlugin({
       'process.env.NODE_ENV': JSON.stringify('production')
@@ -58,13 +53,3 @@ module.exports = merge.smart({
   },
   bail: true
 }, resolveConfig)
-
-/*
- * Node configuration
- */
-
-// new webpack.BannerPlugin({
-//   banner: `require('source-map-support').install();\n`,
-//   raw: true
-// })
-
