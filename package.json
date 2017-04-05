@@ -32,8 +32,8 @@
     "build:browser": "webpack --config build/browser/webpack.config.js",
     "comment": "// TODO: test this dev script",
     "dev": "run-p dev:*",
-    "dev:node": "run-s build:node -- --watch",
-    "dev:browser": "run-s build:browser -- --watch"
+    "dev:node": "babel src --out-dir dist --source-maps --copy-files --watch",
+    "dev:browser": "webpack --config build/browser/webpack.config.js --watch"
   },
   "dependencies": {
     "axios": "^0.15.3",
