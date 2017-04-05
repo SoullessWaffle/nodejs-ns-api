@@ -1,5 +1,6 @@
 {
   "actueleVertrekTijden": "departures",
+  "advies": "advice",
   "bericht": "message",
   "datum": "date",
   "eindBestemming": "destination",
