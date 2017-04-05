@@ -8,242 +8,83 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
-import camelCase from 'camel-case'
-import moment from 'moment'
 import joi from 'joi'
-import R from 'ramda'
-import pify from 'pify'
-import axios from 'axios'
-import { parseString } from 'xml2js'
+// Import helpers
 import {
-  asArray,
-  booleanToString,
-  NsApiError,
-  parseBoolean,
-  parseIsoDate,
-  processParams,
-  translate
+  parseDate as _parseDate,
+  validateConfig
 } from './helpers'
-import {
-  departingTrain,
-  soapFault
-} from './lenses'
+// Import API request handlers
+import _apiRequest from './api-request'
+import apiResponseParser from './api-response-parser'
+// Import API response processors
+import _departuresProcessor from './processors/departures'
+import _disruptionsProcessor from './processors/disruptions'
 
-const parseXml = pify(parseString)
+export default (config) => {
+  // Validate config
+  config = validateConfig(joi.object({
+    auth: joi.object({
+      username: joi.string().required(),
+      password: joi.string().required()
+    }),
+    timeout: joi.number().integer().min(0).default(5000),
+    apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
+    momentDates: joi.bool().default(false)
+  }))(config)
 
-const configSchema = joi.object({
-  auth: joi.object({
-    username: joi.string().required(),
-    password: joi.string().required()
-  }),
-  timeout: joi.number().integer().min(0).default(5000),
-  apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
-  momentDates: joi.bool().default(false)
-})
+  // Configure helper methods
+  const apiRequest = _apiRequest(config.auth, config.timeout, config.apiBasePath)
+  const parseDate = _parseDate(config.momentDates)
 
-class NsApi {
-  constructor (config) {
-    const { error, value } = joi.validate(config, configSchema)
-    if (error != null) {
-      throw error
-    }
+  // Configure api response processors
+  const departuresProcessor = _departuresProcessor(parseDate)
+  const disruptionsProcessor = _disruptionsProcessor(parseDate)
 
-    this.config = value
-
-    // Bind this for event handlers
-    this.normalizeDate = this.normalizeDate.bind(this)
-    this.processData = this.processData.bind(this)
-    this.apiRequest = this.apiRequest.bind(this)
-    this.departures = this.departures.bind(this)
-    this.disruptions = this.disruptions.bind(this)
-  }
-
-  /**
-   * Normalize a date to either a moment date
-   * or a js date object depending on the config
-   *
-   * @param {Date|Moment} date
-   * @returns {Date|Moment} The normalized date
-   */
-  // TODO: refactor this + parseIsoDate helper
-  normalizeDate (date) {
-    // Ignore date strings
-    if (R.type(date) === 'String') return date
-
-    const { momentDates } = this.config
-    const isMoment = moment.isMoment(date)
-
-    // if the date type matches the config, return it as-is
-    if (isMoment === momentDates) return date
-
-    // if the date is a moment date but the
-    // config requires normal dates, convert it
-    if (isMoment && !momentDates) return date.toDate()
-
-    // Otherwise convert it to a moment date
-    return moment(date)
-  }
-
-  /**
-   * Process API response data
-   *
-   * @param {*} rawData - The raw API response data
-   * @returns {Promise} - A Promise containing the processed response data
-   */
-  async processData (rawData) {
-    let data
-    try {
-      data = await parseXml(rawData, {
-        explicitArray: false,
-        tagNameProcessors: [camelCase, translate],
-        attrNameProcessors: [camelCase, translate],
-        valueProcessors: [R.trim],
-        attrValueProcessors: [R.trim]
-      })
-    } catch (err) {
-      throw new NsApiError('Invalid API response', { rawData, err })
-    }
-
-    // parse API error
-    if (data.error != null) {
-      throw new NsApiError('API error', data.error)
-    }
-
-    // TODO: test this
-    const { faultcode, faultstring } = R.defaultTo({}, R.view(soapFault, data))
-    if (faultcode != null) {
-      throw new NsApiError('API error', {
-        code: faultcode,
-        message: faultstring
-      })
-    }
-
-    return data
-  }
-
-  /**
-   * Send a request to the API
-   *
-   * @param {String} endpoint - Part of request path `/ns-api-ENDPOINT_NAME`
-   * @param {Object} [params={}] - Request parameters
-   * @returns {Promise} - A Promise containing the processed response data
-   */
-  async apiRequest (endpoint, params = {}) {
-    const {
-      auth,
-      timeout,
-      apiBasePath
-    } = this.config
-
-    const url = apiBasePath + endpoint
-
-    const options = {
-      timeout,
-      auth,
-      headers: {
-        'Accept': 'text/xml; charset=UTF-8',
-        'Accept-Encoding': 'gzip',
-        'User-Agent': 'nsapi.js (https://github.com/Soullesswaffle/nodejs-ns-api)'
-      },
-      params: R.map(booleanToString, params)
-    }
-
-    // do request
-    let res
-    try {
-      res = await axios.get(url, options)
-    } catch (err) {
-      throw new NsApiError('API request failed', err)
-    }
-
-    return this.processData(res.data)
-  }
-
-  /**
-   * Departures
-   *
-   * @param {String} station - Station ID
-   * @returns {Promise} - A promise containing a data object with departures
-   */
-  async departures (station) {
-    const data = await this.apiRequest('avt', { station })
-
-    if (R.view(departingTrain, data) == null) {
-      throw new NsApiError('Unexpected API response', data)
-    }
-
-    return R.map((entry) => {
-      // Parse departure time
-      entry.departureTime = this.normalizeDate(
-        parseIsoDate(entry.departureTime)
-      )
-
-      // Process departing platform and whether it changed
-      entry.departingPlatformChange = parseBoolean(
-        entry.departingPlatform['$'].change
-      )
-      entry.departingPlatform = entry.departingPlatform['_']
-
-      // Parse route text to route array
-      if (entry.routeText != null) {
-        entry.route = entry.routeText.split(', ').map(R.trim)
+  // Return api methods
+  return {
+    departures: async (station) => {
+      const params = {
+        station
       }
 
-      // Process comments
-      if (entry.comments != null) {
-        entry.comments = asArray(entry.comments.comment)
+      const rawRes = await apiRequest('avt', params)
+      const res = await apiResponseParser(rawRes)
+      const data = await departuresProcessor(res)
+
+      return data
+    },
+
+    currentDisruptions: async (station) => {
+      const params = {}
+
+      if (station != null) {
+        params.station = station
+      } else {
+        params.actual = true
       }
 
-      // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
+      const rawRes = await apiRequest('storingen', params)
+      const res = await apiResponseParser(rawRes)
+      const data = await disruptionsProcessor(res)
 
-      return entry
-    }, asArray(data.departures.departingTrain))
-  }
+      return data
+    },
 
-  /**
-   * Disruptions
-   *
-   * @param {Object} options - Options
-   * @returns {Promise}
-   */
-  async disruptions (options) {
-    const params = processParams(joi.object({
-      station: joi.string().optional(),
-      actual: joi.boolean().optional(),
-      unplanned: joi.boolean().optional()
-    }), options)
-
-    // Flip unplanned option because the API is weird
-    if (R.type(params.unplanned) === 'Boolean') {
-      params.unplanned = !params.unplanned
-    }
-
-    const data = await this.apiRequest('storingen', params)
-
-    const processDisruption = (disruption) => {
-      // Parse disruption date
-      if (disruption.date != null) {
-        disruption.date = this.normalizeDate(
-          parseIsoDate(disruption.date)
-        )
+    plannedDisruptions: async () => {
+      const params = {
+        // NB: this parameter is flipped on the API
+        unplanned: true
       }
 
-      return disruption
+      const rawRes = await apiRequest('storingen', params)
+      const res = await apiResponseParser(rawRes)
+      const data = await disruptionsProcessor(res)
+
+      return data.planned
     }
-
-    const disruptions = {}
-
-    // TODO: use lenses here
-    disruptions.planned = asArray(data.disruptions.planned.disruption)
-      .map(processDisruption)
-    disruptions.unplanned = asArray(data.disruptions.unplanned.disruption)
-      .map(processDisruption)
-
-    return disruptions
   }
 }
-
-export default NsApi
 
 // /**
 //  * Prijzen - tariffs

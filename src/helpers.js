@@ -4,7 +4,7 @@ import joi from 'joi'
 import strings from './strings.json'
 
 // See http://stackoverflow.com/a/32749533/1233003
-class ExtendableError extends Error {
+export class ExtendableError extends Error {
   constructor (message) {
     super(message)
     this.name = this.constructor.name
@@ -15,14 +15,6 @@ class ExtendableError extends Error {
     } else {
       this.stack = (new Error(message)).stack
     }
-  }
-}
-
-export class NsApiError extends ExtendableError {
-  constructor (message, details = {}) {
-    super(message)
-
-    this.context = details
   }
 }
 
@@ -45,12 +37,15 @@ export const parseBoolean = R.when(
   (x) => R.equals(R.toLower(x), 'true')
 )
 
-export const parseIsoDate = conditionalConvert(
-  // Converter
-  (x) => moment(x, moment.ISO_8601, true),
-  // Predicate
-  (x) => x.isValid()
-)
+export const parseDate = (returnMomentDates) => (rawDate) => {
+  const date = moment(rawDate, moment.ISO_8601, true)
+  const valid = date.isValid()
+
+  if (!valid) return rawDate
+
+  if (returnMomentDates) return date
+  else return date.toDate()
+}
 
 export const asArray = R.unless(
   (x) => R.equals(R.type(x), 'Array'),
@@ -75,3 +70,13 @@ export const processParams = (schema, data) => {
 
   return value
 }
+
+export const validateConfig = R.curry((schema, config) => {
+  const result = joi.validate(config, schema)
+
+  if (result.error != null) {
+    throw result.error
+  }
+
+  return result.value
+})
