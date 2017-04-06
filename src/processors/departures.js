@@ -22,8 +22,8 @@ export default (parseDate) => (data) => {
     entry.departureTime = parseDate(entry.departureTime)
 
     // Process departing platform and whether it changed
-    entry.departingPlatformChange = parseBoolean(
-      entry.departingPlatform['$'].change
+    entry.departingPlatformChanged = parseBoolean(
+      entry.departingPlatform['$'].changed
     )
     entry.departingPlatform = entry.departingPlatform['_']
 
@@ -32,9 +32,9 @@ export default (parseDate) => (data) => {
       entry.route = entry.routeText.split(', ').map(R.trim)
     }
 
-    // Process comments
-    if (entry.comments != null) {
-      entry.comments = asArray(entry.comments.comment)
+    // Process notices
+    if (entry.notices != null) {
+      entry.notices = asArray(entry.notices.notice)
     }
 
     // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
