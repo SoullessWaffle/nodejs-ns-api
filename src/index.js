@@ -8,10 +8,16 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
+import look from 'ramda-debug'
 import joi from 'joi'
+
+const R = look.wrap(require('ramda'))
+// look.on()
+
 // Import helpers
 import {
   parseDate as _parseDate,
+  alwaysCall,
   validateConfig
 } from './helpers'
 // Import API request handlers
@@ -36,6 +42,17 @@ export default (config) => {
   // Configure helper methods
   const apiRequest = _apiRequest(config.auth, config.timeout, config.apiBasePath)
   const parseDate = _parseDate(config.momentDates)
+  const request = R.pipeP(
+    apiRequest,
+    apiResponseParser
+  )
+
+  const makeRequest = R.curry(
+    (endpoint, paramBuilder, processor) =>
+      (...userArgs) =>
+        request(endpoint, paramBuilder(...userArgs))
+          .then(processor(...userArgs))
+  )
 
   // Configure api response processors
   const departuresProcessor = _departuresProcessor(parseDate)
@@ -43,46 +60,30 @@ export default (config) => {
 
   // Return api methods
   return {
-    departures: async (station) => {
-      const params = {
-        station
-      }
+    departures: makeRequest(
+      'avt',
+      R.objOf('station'),
+      () => departuresProcessor
+    ),
 
-      const rawRes = await apiRequest('avt', params)
-      const res = await apiResponseParser(rawRes)
-      const data = await departuresProcessor(res)
+    currentDisruptions: makeRequest(
+      'storingen', 
+      alwaysCall(R.ifElse(
+        R.isNil,
+        R.always({ actual: true }),
+        R.objOf('station')
+      )),
+      () => disruptionsProcessor
+    ),
 
-      return data
-    },
-
-    currentDisruptions: async (station) => {
-      const params = {}
-
-      if (station != null) {
-        params.station = station
-      } else {
-        params.actual = true
-      }
-
-      const rawRes = await apiRequest('storingen', params)
-      const res = await apiResponseParser(rawRes)
-      const data = await disruptionsProcessor(res)
-
-      return data
-    },
-
-    plannedDisruptions: async () => {
-      const params = {
+    plannedDisruptions: makeRequest(
+      'storingen', 
+      R.always({
         // NB: this parameter is flipped on the API
         unplanned: true
-      }
-
-      const rawRes = await apiRequest('storingen', params)
-      const res = await apiResponseParser(rawRes)
-      const data = await disruptionsProcessor(res)
-
-      return data.planned
-    }
+      }),
+      () => R.pipe(disruptionsProcessor, R.prop('planned'))
+    )
   }
 }
 

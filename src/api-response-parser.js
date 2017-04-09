@@ -2,7 +2,7 @@ import R from 'ramda'
 import { parseString } from 'xml2js'
 import pify from 'pify'
 import camelCase from 'camel-case'
-import NsApiError from './ns-api-error'
+import cNsApiError from './ns-api-error'
 import { translate } from './helpers'
 import { soapFault } from './lenses'
 
@@ -25,18 +25,18 @@ export default async (rawData) => {
       attrValueProcessors: [R.trim]
     })
   } catch (err) {
-    throw new NsApiError('Invalid API response', { rawData, err })
+    throw cNsApiError('Invalid API response', { rawData, err })
   }
 
   // parse API error
   if (data.error != null) {
-    throw new NsApiError('API error', data.error)
+    throw cNsApiError('API error', data.error)
   }
 
   // TODO: test this
   const { faultcode, faultstring } = R.defaultTo({}, R.view(soapFault, data))
   if (faultcode != null) {
-    throw new NsApiError('API error', {
+    throw cNsApiError('API error', {
       code: faultcode,
       message: faultstring
     })

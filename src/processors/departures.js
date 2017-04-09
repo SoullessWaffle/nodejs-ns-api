@@ -1,5 +1,5 @@
 import R from 'ramda'
-import NsApiError from '../ns-api-error'
+import cNsApiError from '../ns-api-error'
 import {
   asArray,
   parseBoolean
@@ -14,7 +14,7 @@ import { departingTrain } from '../lenses'
  */
 export default (parseDate) => (data) => {
   if (R.view(departingTrain, data) == null) {
-    throw new NsApiError('Unexpected API response', data)
+    throw new cNsApiError('Unexpected API response', data)
   }
 
   return R.map((entry) => {

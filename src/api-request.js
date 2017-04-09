@@ -1,6 +1,6 @@
 import axios from 'axios'
 import R from 'ramda'
-import NsApiError from './ns-api-error'
+import cNsApiError from './ns-api-error'
 import { booleanToString } from './helpers'
 
 /**
@@ -10,7 +10,7 @@ import { booleanToString } from './helpers'
  * @param {Object} [params={}] - Request parameters
  * @returns {Promise} - A Promise containing the processed response data
  */
-export default (auth, timeout, apiBasePath) => async (endpoint, params = {}) => {
+export default (auth, timeout, apiBasePath) => (endpoint, params = {}) => {
   const url = apiBasePath + endpoint
 
   const options = {
@@ -25,12 +25,7 @@ export default (auth, timeout, apiBasePath) => async (endpoint, params = {}) => 
   }
 
   // Make the request
-  let res
-  try {
-    res = await axios.get(url, options)
-  } catch (err) {
-    throw new NsApiError('API request failed', err)
-  }
-
-  return res.data
+  return axios.get(url, options)
+    .then(R.prop("data"))
+    .catch(cNsApiError('API request failed'))
 }

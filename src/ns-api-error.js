@@ -1,9 +1,14 @@
 import { ExtendableError } from './helpers'
+import R from 'ramda'
 
-export default class NsApiError extends ExtendableError {
+export class NsApiError extends ExtendableError {
   constructor (message, details = {}) {
     super(message)
 
     this.context = details
   }
 }
+
+export const cNsApiError = R.construct(NsApiError)
+
+export default cNsApiError

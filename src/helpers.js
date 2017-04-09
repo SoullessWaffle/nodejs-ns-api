@@ -51,11 +51,11 @@ export const asArray = R.unless(
   (x) => R.equals(R.type(x), 'Array'),
   R.ifElse(
     // If x is null or undefined
-    (x) => x == null,
+    R.isNil,
     // Return an empty array
-    () => [],
+    R.always([]),
     // Else return the value in an array
-    (x) => [x]
+    R.of
   )
 )
 
@@ -80,3 +80,7 @@ export const validateConfig = R.curry((schema, config) => {
 
   return result.value
 })
+
+export const alwaysCall = (fn) =>
+  (...args) =>
+    (args.length === 0) ? fn(undefined) : fn(...args)
