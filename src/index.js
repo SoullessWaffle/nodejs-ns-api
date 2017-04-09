@@ -77,7 +77,7 @@ export default (config) => {
     ),
 
     plannedDisruptions: makeRequest(
-      'storingen', 
+      'storingen',
       R.always({
         // NB: this parameter is flipped on the API
         unplanned: true

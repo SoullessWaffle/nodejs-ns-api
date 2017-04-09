@@ -11,7 +11,7 @@
   "periode": "period",
   "reden": "reason",
   "reisTip": "travelTip",
-  "ritNummer": "tripId",
+  "ritNummer": "trainId",
   "routeTekst": "routeText",
   "storing": "disruption",
   "storingen": "disruptions",

@@ -81,6 +81,17 @@ export const validateConfig = R.curry((schema, config) => {
   return result.value
 })
 
+// This is used to call a Ramda curried function without any arguments
 export const alwaysCall = (fn) =>
   (...args) =>
     (args.length === 0) ? fn(undefined) : fn(...args)
+
+// Morph one object into another, modifying and adding properties
+// (does not mutate the original object)
+export const morph = R.curry((modify, create) => R.converge(
+  R.merge,
+  [
+    R.evolve(modify),
+    R.applySpec(create)
+  ]
+))
