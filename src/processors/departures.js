@@ -28,32 +28,8 @@ export default (parseDate) => (data) => {
     destination: String,
     trainType: String,
     carrier: String,
-    departingPlatform: { _: String, '$': { changed: String } } 
+    departingPlatform: { _: String, '$': { changed: String } }
   }
-  output object:
-  R.converge(
-    R.merge,
-    [
-    evolve({
-      // Parse departure time
-      departureTime: parseDate,
-      departingPlatform: R.prop('_'),
-    }),
-  
-    applySpec({
-      // Process departing platform and whether it changed
-      departingPlatformChanged: R.pipe(
-        R.path(['departingPlatform', '$', 'changed']),
-        parseBoolean
-      ),
-      route: R.pipe(
-        R.propOr(',  ', 'routeText'),
-        R.split(', '),
-        R.map(R.trim)
-      )
-    })
-    ]
-  )
   */
   return R.map(
     // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
@@ -63,8 +39,8 @@ export default (parseDate) => (data) => {
         // Parse departure time
         departureTime: parseDate,
         departingPlatform: R.prop('_'),
-        notices: R.pipe(
-          R.prop('notice'),
+        comments: R.pipe(
+          R.prop('comment'),
           asArray
         )
       },
