@@ -26,6 +26,6 @@ export default (auth, timeout, apiBasePath) => (endpoint, params = {}) => {
 
   // Make the request
   return axios.get(url, options)
-    .then(R.prop("data"))
+    .then(R.prop('data'))
     .catch(cNsApiError('API request failed'))
 }

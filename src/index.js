@@ -67,7 +67,7 @@ export default (config) => {
     ),
 
     currentDisruptions: makeRequest(
-      'storingen', 
+      'storingen',
       alwaysCall(R.ifElse(
         R.isNil,
         R.always({ actual: true }),
