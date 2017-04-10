@@ -11,12 +11,6 @@ const processDisruption = (parseDate) => (disruption) => {
   return disruption
 }
 
-/**
- * Disruptions
- *
- * @param {Object} options - Options
- * @returns {Promise}
- */
 export default (parseDate) => {
   const pd = processDisruption(parseDate)
 

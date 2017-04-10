@@ -8,12 +8,6 @@ import { soapFault } from './lenses'
 
 const parseXml = pify(parseString)
 
-/**
- * Process API response data
- *
- * @param {*} rawData - The raw API response data
- * @returns {Promise} - A Promise containing the processed response data
- */
 export default async (rawData) => {
   let data
   try {

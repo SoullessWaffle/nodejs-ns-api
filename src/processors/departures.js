@@ -7,12 +7,6 @@ import {
 } from '../helpers'
 import { departingTrain } from '../lenses'
 
-/**
- * Departures processor
- *
- * @param {Object} data - response to be what?
- * @returns {Object} - Containing a data object with departures
- */
 export default (parseDate) => (data) => {
   if (R.view(departingTrain, data) == null) {
     throw cNsApiError('Unexpected API response', data)

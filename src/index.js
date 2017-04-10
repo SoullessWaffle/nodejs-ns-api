@@ -60,28 +60,51 @@ export default (config) => {
 
   // Return api methods
   return {
+    /**
+     * Request up to date departure information for a station
+     * @param {String} station
+     * @returns {Object} Departure data
+     */
     departures: makeRequest(
+      // Endpoint
       'avt',
+      // Param builder
       R.objOf('station'),
+      // Processor
       () => departuresProcessor
     ),
 
+    /**
+     * Request the current disruptions, optionally limited to a specific station
+     * @param {String} [station]
+     * @returns {Object} Disruptions data
+     */
     currentDisruptions: makeRequest(
+      // Endpoint
       'storingen',
+      // Param builder
       alwaysCall(R.ifElse(
         R.isNil,
         R.always({ actual: true }),
         R.objOf('station')
       )),
+      // Processor
       () => disruptionsProcessor
     ),
 
+    /**
+     * Request the disruptions due to planned maintenance and engineering work
+     * @returns {Object} Disruptions data
+     */
     plannedDisruptions: makeRequest(
+      // Endpoint
       'storingen',
+      // Param builder
       R.always({
         // NB: this parameter is flipped on the API
         unplanned: true
       }),
+      // Processor
       () => R.pipe(disruptionsProcessor, R.prop('planned'))
     )
   }
