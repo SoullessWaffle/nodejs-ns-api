@@ -28,18 +28,17 @@ export default (parseDate) => (data) => {
   return R.map(
     // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
     morph(
-      // Access just the property
       {
         // Parse departure time
-        departureTime: parseDate,
-        departingPlatform: R.prop('_'),
+        departureTime: R.pipe(
+          R.prop('departureTime'),
+          parseDate
+        ),
+        departingPlatform: R.path('departingPlatform', '_'),
         comments: R.pipe(
-          R.prop('comment'),
+          R.path('comments', 'comment'),
           asArray
-        )
-      },
-      // Access the whole object
-      {
+        ),
         departingPlatformChanged: R.pipe(
           R.pathOr(false, ['departingPlatform', '$', 'changed']),
           parseBoolean
@@ -55,7 +54,6 @@ export default (parseDate) => (data) => {
           )
         )
       }
-    ),
-    asArray(data.departures.departingTrain)
-  )
+    )
+  )(asArray(data.departures.departingTrain))
 }

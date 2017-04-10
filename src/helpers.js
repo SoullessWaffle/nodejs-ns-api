@@ -86,12 +86,16 @@ export const alwaysCall = (fn) =>
   (...args) =>
     (args.length === 0) ? fn(undefined) : fn(...args)
 
-// Morph one object into another, modifying and adding properties
+// Morph one object into another, modifying, adding and removing properties according to a spec
 // (does not mutate the original object)
-export const morph = R.curry((modify, create) => R.converge(
-  R.merge,
-  [
-    R.evolve(modify),
-    R.applySpec(create)
-  ]
-))
+export const morph = R.curry((spec, data) => R.pipe(
+  R.converge(
+    R.merge,
+    [
+      R.identity,
+      R.applySpec(spec)
+    ]
+  ),
+  // Remove keys whose value equals undefined
+  R.reject(R.equals(undefined))
+)(data))
