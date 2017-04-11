@@ -34,9 +34,9 @@ export default (parseDate) => (data) => {
           R.prop('departureTime'),
           parseDate
         ),
-        departingPlatform: R.path('departingPlatform', '_'),
+        departingPlatform: R.path(['departingPlatform', '_']),
         comments: R.pipe(
-          R.path('comments', 'comment'),
+          R.path(['comments', 'comment']),
           asArray
         ),
         departingPlatformChanged: R.pipe(
@@ -44,9 +44,9 @@ export default (parseDate) => (data) => {
           parseBoolean
         ),
         route: R.pipe(
-          R.propOr([], 'routeText'),
+          R.propOr(undefined, 'routeText'),
           R.unless(
-            R.isEmpty,
+            R.equals(undefined),
             R.pipe(
               R.split(', '),
               R.map(R.trim)
