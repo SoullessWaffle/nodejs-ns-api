@@ -29,19 +29,18 @@ export default (parseDate) => (data) => {
     // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
     morph(
       {
-        // Parse departure time
-        departureTime: R.pipe(
-          R.prop('departureTime'),
-          parseDate
-        ),
-        departingPlatform: R.path(['departingPlatform', '_']),
         comments: R.pipe(
           R.path(['comments', 'comment']),
           asArray
         ),
+        departingPlatform: R.path(['departingPlatform', '_']),
         departingPlatformChanged: R.pipe(
           R.pathOr(false, ['departingPlatform', '$', 'changed']),
           parseBoolean
+        ),
+        departureTime: R.pipe(
+          R.prop('departureTime'),
+          parseDate
         ),
         route: R.pipe(
           R.propOr(undefined, 'routeText'),
