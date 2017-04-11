@@ -84,8 +84,11 @@ export default (config) => {
       'storingen',
       // Param builder
       alwaysCall(R.ifElse(
+        // If
         R.isNil,
+        // Then
         R.always({ actual: true }),
+        // Else
         R.objOf('station')
       )),
       // Processor
