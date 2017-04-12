@@ -1,5 +1,6 @@
 import R from 'ramda'
 import { Reader } from 'ramda-fantasy'
+import parseXsdDuration from 'parse-xsd-duration'
 import cNsApiError from '../ns-api-error'
 import {
   asArray,
@@ -39,7 +40,6 @@ export default (data) => Reader(env =>
       R.view(departingTrain),
       asArray,
       R.map(
-        // TODO: parse departure delay to milliseconds value (PT28M = +28 min)
         morph({
           comments: R.pipe(
             R.path(['comments', 'comment']),
@@ -50,6 +50,24 @@ export default (data) => Reader(env =>
             R.pathOr(false, ['departingPlatform', '$', 'changed']),
             parseBoolean
           ),
+          departureDelay: R.pipe(
+            R.propOr(undefined, 'departureDelay'),
+            R.when(
+              R.is(String),
+              R.pipe(
+                parseXsdDuration,
+                R.ifElse(
+                  // If
+                  R.equals(null),
+                  // Then
+                  R.always(undefined),
+                  // Else
+                  R.multiply(1000)
+                )
+              )
+            )
+          ),
+          departureDelayXsd: R.prop('departureDelay'),
           departureTime: R.pipe(
             R.prop('departureTime'),
             // env.parseDate
