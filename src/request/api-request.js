@@ -1,0 +1,30 @@
+import axios from 'axios'
+import R from 'ramda'
+import { cNsApiError2 } from '../ns-api-error'
+import Future from 'fluture'
+import { booleanToString, safeProp } from '../helpers'
+import { Reader } from 'ramda-fantasy'
+
+// get :: String -> Object -> Future Error Object
+const get = Future.fromPromise2(R.binary(axios.get))
+
+// apiRequest :: String -> Object -> Reader Env (Future Error String)
+export default (endpoint, params = {}) => Reader(env => {
+  const url = env.config.apiBasePath + endpoint
+
+  const options = {
+    timeout: env.config.timeout,
+    auth: env.config.auth,
+    headers: {
+      'Accept': 'text/xml; charset=UTF-8',
+      'Accept-Encoding': 'gzip',
+      'User-Agent': 'nsapi.js (https://github.com/Soullesswaffle/nodejs-ns-api)'
+    },
+    params: R.map(booleanToString, params)
+  }
+
+  // Make the request
+  return get(url, options)
+    .chain(safeProp('data'))
+    .mapRej(cNsApiError2('API request failed'))
+})

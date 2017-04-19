@@ -8,6 +8,7 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
+import { Reader } from 'ramda-fantasy'
 import look from 'ramda-debug'
 import joi from 'joi'
 
@@ -16,17 +17,17 @@ const R = look.wrap(require('ramda'))
 
 // Import helpers
 import {
-  parseDate as _parseDate,
+  parseDate,
   alwaysCall,
   validateConfig
 } from './helpers'
 // Import API request handlers
-import _apiRequest from './api-request'
-import apiResponseParser from './api-response-parser'
+import request from './request'
 // Import API response processors
-import _departuresProcessor from './processors/departures'
+import departuresProcessor from './processors/departures'
 import _disruptionsProcessor from './processors/disruptions'
 
+// nsApi :: Object -> Object
 export default (config) => {
   // Validate config
   config = validateConfig(joi.object({
@@ -36,26 +37,36 @@ export default (config) => {
     }),
     timeout: joi.number().integer().min(0).default(5000),
     apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
-    momentDates: joi.bool().default(false)
+    momentDates: joi.bool().default(false),
+    futures: joi.bool().default(false)
   }))(config)
 
-  // Configure helper methods
-  const apiRequest = _apiRequest(config.auth, config.timeout, config.apiBasePath)
-  const parseDate = _parseDate(config.momentDates)
-  const request = R.pipeP(
-    apiRequest,
-    apiResponseParser
-  )
+  const env = {
+    config
+  }
 
+  // env.parseDate = parseDate(?).run(env)
+
+  // Now what to do with parseDate...?
+
+  // Configure helper methods
+
+  // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) -> (...args) -> (Future Error Object) | (Promise Error Object)
   const makeRequest = R.curry(
     (endpoint, paramBuilder, processor) =>
-      (...userArgs) =>
-        request(endpoint, paramBuilder(...userArgs))
-          .then(processor(...userArgs))
+      (...userArgs) => {
+        const resultFuture = request(endpoint, paramBuilder(...userArgs))
+          .chain(responseFuture => Reader(env => {
+            return responseFuture.map(data => processor(...userArgs)(data).run(env))
+          }))
+          .run(env)
+
+        // Return either a Future or a Promise depending on the config
+        return env.config.futures ? resultFuture : resultFuture.promise()
+      }
   )
 
   // Configure api response processors
-  const departuresProcessor = _departuresProcessor(parseDate)
   const disruptionsProcessor = _disruptionsProcessor(parseDate)
 
   // Return api methods

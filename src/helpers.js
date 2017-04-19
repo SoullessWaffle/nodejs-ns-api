@@ -2,6 +2,8 @@ import R from 'ramda'
 import moment from 'moment'
 import joi from 'joi'
 import strings from './strings.json'
+import { Reader } from 'ramda-fantasy'
+import Future from 'fluture'
 
 // See http://stackoverflow.com/a/32749533/1233003
 export class ExtendableError extends Error {
@@ -37,15 +39,15 @@ export const parseBoolean = R.when(
   (x) => R.equals(R.toLower(x), 'true')
 )
 
-export const parseDate = (returnMomentDates) => (rawDate) => {
+export const parseDate = (rawDate) => Reader(env => {
   const date = moment(rawDate, moment.ISO_8601, true)
   const valid = date.isValid()
 
   if (!valid) return rawDate
 
-  if (returnMomentDates) return date
+  if (env.config.momentDates) return date
   else return date.toDate()
-}
+})
 
 export const asArray = R.unless(
   (x) => R.equals(R.type(x), 'Array'),
@@ -99,3 +101,8 @@ export const morph = R.curry((spec, data) => R.pipe(
   // Remove keys whose value equals undefined
   R.reject(R.equals(undefined))
 )(data))
+
+export const ReaderTFuture = Reader.T(Future)
+
+// :: String -> Object -> Future Error Any
+export const safeProp = Future.encase2(R.prop)

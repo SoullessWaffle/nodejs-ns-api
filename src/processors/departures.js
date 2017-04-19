@@ -1,4 +1,5 @@
 import R from 'ramda'
+import { Reader } from 'ramda-fantasy'
 import cNsApiError from '../ns-api-error'
 import {
   asArray,
@@ -20,7 +21,9 @@ import { departingTrain } from '../lenses'
     departingPlatform: { _: String, '$': { changed: String } }
   }
 */
-export default (parseDate) =>
+
+// :: Object -> Reader Env Object
+export default (data) => Reader(env =>
   R.ifElse(
     // If
     R.pipe(
@@ -49,7 +52,7 @@ export default (parseDate) =>
           ),
           departureTime: R.pipe(
             R.prop('departureTime'),
-            parseDate
+            // env.parseDate
           ),
           route: R.pipe(
             R.propOr(undefined, 'routeText'),
@@ -64,4 +67,5 @@ export default (parseDate) =>
         })
       )
     ),
-  )
+  )(data)
+)
