@@ -3,14 +3,18 @@ import { parseString } from 'xml2js'
 import camelCase from 'camel-case'
 import Future from 'fluture'
 import {
-  cNsApiError,
-  cNsApiError2
+  cNsApiError
 } from '../ns-api-error'
-import { translate } from '../helpers'
+import { translate, trimTabsAndNewlines } from '../helpers'
 import { soapFault } from '../lenses'
 
 // parseXml :: String -> Object -> Future Error Object
 const parseXml = (xml, options) => Future.node(done => parseString(xml, options, done))
+
+const processStringValues = R.when(R.is(String), R.pipe(
+  R.trim,
+  trimTabsAndNewlines
+))
 
 // apiResponseParser :: Object -> Future Error Object
 export default (rawData) => {
@@ -18,8 +22,8 @@ export default (rawData) => {
     explicitArray: false,
     tagNameProcessors: [camelCase, translate],
     attrNameProcessors: [camelCase, translate],
-    valueProcessors: [R.trim],
-    attrValueProcessors: [R.trim]
+    valueProcessors: [processStringValues],
+    attrValueProcessors: [processStringValues]
   })
     .mapRej(err => cNsApiError('Invalid API response', { rawData, err }))
     .chain(
@@ -31,7 +35,7 @@ export default (rawData) => {
         // Else
         R.pipe(
           R.prop('error'),
-          cNsApiError2('API error'),
+          cNsApiError('API error'),
           Future.reject
         )
       )

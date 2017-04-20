@@ -27,7 +27,7 @@ import {
 import request from './request'
 // Import API response processors
 import departuresProcessor from './processors/departures'
-import _disruptionsProcessor from './processors/disruptions'
+import disruptionsProcessor from './processors/disruptions'
 
 // nsApi :: Object -> Object
 export default (config) => {
@@ -58,7 +58,7 @@ export default (config) => {
           readerToState(request(endpoint, paramBuilder(...userArgs)))
         ))
         .chain(responseFuture => State.get.map(state =>
-          responseFuture.map(data => processor(...userArgs)(data).run(state))
+          responseFuture.map(data => processor(data).run(state))
         ))
         .eval(env)
 
@@ -66,9 +66,6 @@ export default (config) => {
       return env.config.futures ? resultFuture : resultFuture.promise()
     }
   )
-
-  // Configure api response processors
-  const disruptionsProcessor = _disruptionsProcessor(parseDate)
 
   // Return api methods
   return {
@@ -83,7 +80,7 @@ export default (config) => {
       // Param builder
       R.objOf('station'),
       // Processor
-      () => departuresProcessor
+      departuresProcessor
     ),
 
     /**
@@ -104,7 +101,7 @@ export default (config) => {
         R.objOf('station')
       )),
       // Processor
-      () => disruptionsProcessor
+      disruptionsProcessor
     ),
 
     /**
@@ -120,7 +117,10 @@ export default (config) => {
         unplanned: true
       }),
       // Processor
-      () => R.pipe(disruptionsProcessor, R.prop('planned'))
+      R.pipe(
+        disruptionsProcessor,
+        R.map(R.prop('planned'))
+      )
     )
   }
 }

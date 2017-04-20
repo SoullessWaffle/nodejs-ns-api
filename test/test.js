@@ -6,8 +6,9 @@ const ns = NsApi({
   futures: true
 })
 
-// // ns.currentDisruptions()
-// // TODO: test current disruptions for station
-// // ns.currentDisruptions('Basel Bad Bf')
-// // ns.plannedDisruptions()
-ns.departures('Hilversum').fork(console.error, console.log)
+// ns.plannedDisruptions()
+// ns.currentDisruptions()
+// TODO: test current disruptions for station
+// ns.currentDisruptions('Amsterdam Centraal')
+ns.departures('Hilversum')
+  .fork(console.error, console.log)

@@ -10,3 +10,15 @@ export const departingTrain = R.lensPath([
   'departures',
   'departingTrain'
 ])
+
+export const plannedDisruptions = R.lensPath([
+  'disruptions',
+  'planned',
+  'disruption'
+])
+
+export const unplannedDisruptions = R.lensPath([
+  'disruptions',
+  'unplanned',
+  'disruption'
+])

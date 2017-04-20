@@ -114,3 +114,6 @@ export const readerToState = R.curry((reader, env) => {
 
 // bakeReader :: Reader r a -> Any -> Any -> Any
 export const bakeReader = R.curry((reader, env, value) => reader(value).run(env))
+
+// trimTabsAndNewlines :: String -> String
+export const trimTabsAndNewlines = (str) => str.replace(/^[\t\r\n]+|[\t\r\n]+$/g, '')

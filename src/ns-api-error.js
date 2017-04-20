@@ -9,8 +9,6 @@ export class NsApiError extends ExtendableError {
   }
 }
 
-export const cNsApiError = R.construct(NsApiError)
-
-export const cNsApiError2 = R.constructN(2, NsApiError)
+export const cNsApiError = R.constructN(2, NsApiError)
 
 export default cNsApiError

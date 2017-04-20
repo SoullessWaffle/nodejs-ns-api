@@ -1,6 +1,6 @@
 import axios from 'axios'
 import R from 'ramda'
-import { cNsApiError2 } from '../ns-api-error'
+import { cNsApiError } from '../ns-api-error'
 import Future from 'fluture'
 import { booleanToString, futureProp } from '../helpers'
 import { Reader } from 'ramda-fantasy'
@@ -26,5 +26,5 @@ export default (endpoint, params = {}) => Reader(env => {
   // Make the request
   return get(url, options)
     .chain(futureProp('data'))
-    .mapRej(cNsApiError2('API request failed'))
+    .mapRej(cNsApiError('API request failed'))
 })

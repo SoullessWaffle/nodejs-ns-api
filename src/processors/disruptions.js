@@ -1,28 +1,38 @@
+import R from 'ramda'
+import { Reader } from 'ramda-fantasy'
 import {
-  asArray
+  asArray,
+  bakeReader,
+  morph
 } from '../helpers'
+import {
+  plannedDisruptions,
+  unplannedDisruptions
+} from '../lenses'
 
-const processDisruption = (parseDate) => (disruption) => {
-  // Parse disruption date
-  if (disruption.date != null) {
-    disruption.date = parseDate(disruption.date)
-  }
+const processDisruption = (disruption) => Reader(env =>
+  morph({
+    date: R.pipe(
+      R.propOr(undefined, 'date'),
+      R.unless(
+        R.isNil,
+        env.parseDate
+      )
+    )
+  })(disruption))
 
-  return disruption
-}
+const bakePd = bakeReader(processDisruption)
 
-export default (parseDate) => {
-  const pd = processDisruption(parseDate)
-
-  return (data) => {
-    const disruptions = {}
-
-    // TODO: use lenses here
-    disruptions.planned = asArray(data.disruptions.planned.disruption)
-      .map(pd)
-    disruptions.unplanned = asArray(data.disruptions.unplanned.disruption)
-      .map(pd)
-
-    return disruptions
-  }
-}
+export default (data) => Reader(env =>
+  R.applySpec({
+    planned: R.pipe(
+      R.view(plannedDisruptions),
+      asArray,
+      R.map(bakePd(env))
+    ),
+    unplanned: R.pipe(
+      R.view(unplannedDisruptions),
+      asArray,
+      R.map(bakePd(env))
+    )
+  })(data))
