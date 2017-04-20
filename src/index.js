@@ -8,7 +8,7 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
-import { Reader } from 'ramda-fantasy'
+import { State } from 'ramda-fantasy'
 import look from 'ramda-debug'
 import joi from 'joi'
 
@@ -19,7 +19,9 @@ const R = look.wrap(require('ramda'))
 import {
   parseDate,
   alwaysCall,
-  validateConfig
+  validateConfig,
+  readerToState,
+  bakeReader
 } from './helpers'
 // Import API request handlers
 import request from './request'
@@ -45,21 +47,21 @@ export default (config) => {
     config
   }
 
-  // env.parseDate = parseDate(?).run(env)
-
-  // Now what to do with parseDate...?
-
-  // Configure helper methods
-
-  // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) -> (...args) -> (Future Error Object) | (Promise Error Object)
+  // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
+  // (...args) -> (Future Error Object) | (Promise Error Object)
   const makeRequest = R.curry(
     (endpoint, paramBuilder, processor) =>
       (...userArgs) => {
-        const resultFuture = request(endpoint, paramBuilder(...userArgs))
-          .chain(responseFuture => Reader(env => {
-            return responseFuture.map(data => processor(...userArgs)(data).run(env))
+        const resultFuture = State.get.chain(state => State.modify(
+          R.assoc('parseDate', bakeReader(parseDate, state))
+        ))
+          .chain(() => State.get.chain(
+            readerToState(request(endpoint, paramBuilder(...userArgs)))
+          ))
+          .chain(responseFuture => State.get.map(state => {
+            return responseFuture.map(data => processor(...userArgs)(data).run(state))
           }))
-          .run(env)
+          .eval(env)
 
         // Return either a Future or a Promise depending on the config
         return env.config.futures ? resultFuture : resultFuture.promise()

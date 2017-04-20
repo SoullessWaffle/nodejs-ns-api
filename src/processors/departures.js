@@ -23,7 +23,7 @@ import { departingTrain } from '../lenses'
   }
 */
 
-// :: Object -> Reader Env Object
+// departures :: Object -> Reader Env Object
 export default (data) => Reader(env =>
   R.ifElse(
     // If
@@ -70,7 +70,7 @@ export default (data) => Reader(env =>
           departureDelayXsd: R.prop('departureDelay'),
           departureTime: R.pipe(
             R.prop('departureTime'),
-            // env.parseDate
+            env.parseDate
           ),
           route: R.pipe(
             R.propOr(undefined, 'routeText'),

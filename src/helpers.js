@@ -2,7 +2,7 @@ import R from 'ramda'
 import moment from 'moment'
 import joi from 'joi'
 import strings from './strings.json'
-import { Reader } from 'ramda-fantasy'
+import { Reader, State } from 'ramda-fantasy'
 import Future from 'fluture'
 
 // See http://stackoverflow.com/a/32749533/1233003
@@ -102,7 +102,15 @@ export const morph = R.curry((spec, data) => R.pipe(
   R.reject(R.equals(undefined))
 )(data))
 
-export const ReaderTFuture = Reader.T(Future)
+// futureProp :: String -> Object -> Future Error Any
+export const futureProp = Future.encase2(R.prop)
 
-// :: String -> Object -> Future Error Any
-export const safeProp = Future.encase2(R.prop)
+// readerToState :: Reader r a -> Any -> State r a
+export const readerToState = R.curry((reader, env) => {
+  const value = reader.run(env)
+  // Return a new State containing the value and env
+  return State.put(env).map(() => value)
+})
+
+// bakeReader :: Reader r a -> Any -> Any -> Any
+export const bakeReader = R.curry((reader, env, value) => reader(value).run(env))
