@@ -3,7 +3,8 @@ import { Reader } from 'ramda-fantasy'
 import {
   asArray,
   bakeReader,
-  morph
+  morph,
+  parseDate
 } from '../helpers'
 import {
   plannedDisruptions,
@@ -16,7 +17,7 @@ const processDisruption = (disruption) => Reader(env =>
       R.propOr(undefined, 'date'),
       R.unless(
         R.isNil,
-        env.parseDate
+        bakeReader(parseDate, env)
       )
     )
   })(disruption))

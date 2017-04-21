@@ -8,7 +8,7 @@ License:    Unlicense (Public Domain)
             (see UNLICENSE file or https://raw.github.com/fvdm/nodejs-ns-api/master/UNLICENSE)
 */
 
-import { State } from 'ramda-fantasy'
+import { Reader } from 'ramda-fantasy'
 import look from 'ramda-debug'
 import joi from 'joi'
 
@@ -17,11 +17,8 @@ const R = look.wrap(require('ramda'))
 
 // Import helpers
 import {
-  parseDate,
   alwaysCall,
-  validateConfig,
-  readerToState,
-  bakeReader
+  validateConfig
 } from './helpers'
 // Import API request handlers
 import request from './request'
@@ -51,16 +48,11 @@ export default (config) => {
   // (...args) -> (Future Error Object) | (Promise Error Object)
   const makeRequest = R.curry((endpoint, paramBuilder, processor) =>
     (...userArgs) => {
-      const resultFuture = State.get.chain(state => State.modify(
-        R.assoc('parseDate', bakeReader(parseDate, state))
-      ))
-        .chain(() => State.get.chain(
-          readerToState(request(endpoint, paramBuilder(...userArgs)))
+      const resultFuture = request(endpoint, paramBuilder(...userArgs))
+        .chain(responseFuture => Reader(env =>
+          responseFuture.map(data => processor(data).run(env))
         ))
-        .chain(responseFuture => State.get.map(state =>
-          responseFuture.map(data => processor(data).run(state))
-        ))
-        .eval(env)
+        .run(env)
 
       // Return either a Future or a Promise depending on the config
       return env.config.futures ? resultFuture : resultFuture.promise()

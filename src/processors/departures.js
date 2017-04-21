@@ -4,8 +4,10 @@ import parseXsdDuration from 'parse-xsd-duration'
 import cNsApiError from '../ns-api-error'
 import {
   asArray,
+  bakeReader,
+  morph,
   parseBoolean,
-  morph
+  parseDate
 } from '../helpers'
 import { departingTrain } from '../lenses'
 
@@ -70,7 +72,7 @@ export default (data) => Reader(env =>
           departureDelayXsd: R.prop('departureDelay'),
           departureTime: R.pipe(
             R.prop('departureTime'),
-            env.parseDate
+            bakeReader(parseDate, env)
           ),
           route: R.pipe(
             R.propOr(undefined, 'routeText'),
