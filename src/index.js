@@ -16,7 +16,7 @@ const R = look.wrap(require('ramda'))
 // look.on()
 
 // Import helpers
-import { alwaysCall, validate } from './helpers'
+import { validate } from './helpers'
 // Import API request handlers
 import request from './request'
 // Import API response processors
@@ -46,22 +46,37 @@ export default config => {
     }
   )
 
-  // makeApiRequestMethod :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
+  // makeApiRequestMethod :: (...args -> Either Error Object) -> String ->
+  // (...args -> Object) -> (Object -> Reader Env Object) ->
   // (...args) -> (Future Error Object) | (Promise Error Object)
-  const makeApiRequestMethod = R.curry((endpoint, paramBuilder, processor) => (
-    ...userArgs
-  ) => {
-    const resultFuture = request(endpoint, paramBuilder(...userArgs))
-      .chain(responseFuture =>
-        Reader(config =>
-          responseFuture.map(data => processor(data).run(config))
+  const makeApiRequestMethod = R.curry(
+    (optionsValidator, endpoint, paramBuilder, processor) => (
+      rawOptions = {}
+    ) => {
+      let resultFuture
+      optionsValidator(rawOptions)
+        .map(options =>
+          request(endpoint, paramBuilder(options))
+            .chain(responseFuture =>
+              Reader(config =>
+                responseFuture.map(data => processor(options, data).run(config))
+              )
+            )
+            .run(config)
         )
-      )
-      .run(config)
+        .either(
+          error => {
+            throw error
+          },
+          rf => {
+            resultFuture = rf
+          }
+        )
 
-    // Return either a Future or a Promise depending on the config
-    return config.futures ? resultFuture : resultFuture.promise()
-  })
+      // Return either a Future or a Promise depending on the config
+      return config.futures ? resultFuture : resultFuture.promise()
+    }
+  )
 
   // Return api methods
   return {
@@ -71,12 +86,18 @@ export default config => {
      * @returns {Object} Departure data
      */
     departures: makeApiRequestMethod(
+      // Options validator
+      validate(
+        joi.object({
+          station: joi.string().required()
+        })
+      ),
       // Endpoint
       'avt',
       // Param builder
-      R.objOf('station'),
+      R.identity,
       // Processor
-      departuresProcessor
+      (options, data) => departuresProcessor(data)
     ),
 
     /**
@@ -85,21 +106,18 @@ export default config => {
      * @returns {Object} Disruptions data
      */
     currentDisruptions: makeApiRequestMethod(
+      // Options validator
+      validate(
+        joi.object({
+          station: joi.string().optional()
+        })
+      ),
       // Endpoint
       'storingen',
       // Param builder
-      alwaysCall(
-        R.ifElse(
-          // If
-          R.isNil,
-          // Then
-          R.always({ actual: true }),
-          // Else
-          R.objOf('station')
-        )
-      ),
+      R.unless(R.has('station'), R.always({ actual: true })),
       // Processor
-      disruptionsProcessor
+      (options, data) => disruptionsProcessor(data)
     ),
 
     /**
@@ -107,6 +125,8 @@ export default config => {
      * @returns {Object} Disruptions data
      */
     plannedDisruptions: makeApiRequestMethod(
+      // Options validator
+      validate(joi.object().length(0)),
       // Endpoint
       'storingen',
       // Param builder
@@ -115,7 +135,8 @@ export default config => {
         unplanned: true
       }),
       // Processor
-      R.pipe(disruptionsProcessor, R.map(R.prop('planned')))
+      (options, data) =>
+        R.pipe(disruptionsProcessor, R.map(R.prop('planned')))(data)
     )
   }
 }

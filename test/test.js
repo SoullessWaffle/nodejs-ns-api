@@ -9,6 +9,6 @@ const ns = NsApi({
 // ns.plannedDisruptions()
 // ns.currentDisruptions()
 // TODO: test current disruptions for station
-// ns.currentDisruptions('Amsterdam Centraal')
-ns.departures('Hilversum')
+// ns.currentDisruptions({ station: 'Amsterdam Centraal' })
+ns.departures({ station: 'Hilversum' })
   .fork(console.error, console.log)
