@@ -46,9 +46,9 @@ export default config => {
     }
   )
 
-  // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
+  // makeApiRequestMethod :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
   // (...args) -> (Future Error Object) | (Promise Error Object)
-  const makeRequest = R.curry((endpoint, paramBuilder, processor) => (
+  const makeApiRequestMethod = R.curry((endpoint, paramBuilder, processor) => (
     ...userArgs
   ) => {
     const resultFuture = request(endpoint, paramBuilder(...userArgs))
@@ -70,7 +70,7 @@ export default config => {
      * @param {String} station
      * @returns {Object} Departure data
      */
-    departures: makeRequest(
+    departures: makeApiRequestMethod(
       // Endpoint
       'avt',
       // Param builder
@@ -84,7 +84,7 @@ export default config => {
      * @param {String} [station]
      * @returns {Object} Disruptions data
      */
-    currentDisruptions: makeRequest(
+    currentDisruptions: makeApiRequestMethod(
       // Endpoint
       'storingen',
       // Param builder
@@ -106,7 +106,7 @@ export default config => {
      * Request the disruptions due to planned maintenance and engineering work
      * @returns {Object} Disruptions data
      */
-    plannedDisruptions: makeRequest(
+    plannedDisruptions: makeApiRequestMethod(
       // Endpoint
       'storingen',
       // Param builder
