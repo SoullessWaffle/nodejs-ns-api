@@ -6,6 +6,7 @@ export const soapFault = R.lensPath([
   'soap:Fault'
 ])
 
+// prettier-ignore
 export const departingTrain = R.lensPath([
   'departures',
   'departingTrain'

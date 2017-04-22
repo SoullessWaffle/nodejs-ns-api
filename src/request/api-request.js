@@ -9,22 +9,23 @@ import { Reader } from 'ramda-fantasy'
 const get = Future.fromPromise2(R.binary(axios.get))
 
 // apiRequest :: String -> Object -> Reader Env (Future Error String)
-export default (endpoint, params = {}) => Reader(env => {
-  const url = env.config.apiBasePath + endpoint
+export default (endpoint, params = {}) =>
+  Reader(env => {
+    const url = env.config.apiBasePath + endpoint
 
-  const options = {
-    timeout: env.config.timeout,
-    auth: env.config.auth,
-    headers: {
-      'Accept': 'text/xml; charset=UTF-8',
-      'Accept-Encoding': 'gzip',
-      'User-Agent': 'nsapi.js (https://github.com/Soullesswaffle/nodejs-ns-api)'
-    },
-    params: R.map(booleanToString, params)
-  }
+    const options = {
+      timeout: env.config.timeout,
+      auth: env.config.auth,
+      headers: {
+        Accept: 'text/xml; charset=UTF-8',
+        'Accept-Encoding': 'gzip',
+        'User-Agent': 'nsapi.js (https://github.com/Soullesswaffle/nodejs-ns-api)'
+      },
+      params: R.map(booleanToString, params)
+    }
 
-  // Make the request
-  return get(url, options)
-    .chain(futureProp('data'))
-    .mapRej(cNsApiError('API request failed'))
-})
+    // Make the request
+    return get(url, options)
+      .chain(futureProp('data'))
+      .mapRej(cNsApiError('API request failed'))
+  })

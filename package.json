@@ -25,6 +25,7 @@
   "scripts": {
     "lint": "eslint src",
     "lint:fix": "eslint --fix ./src",
+    "format": "prettier --write --print-width 80 --tab-width 2 --no-semi --single-quote --trailing-comma none \"./{src,test}/**/*.js\"",
     "test": "node test/test.js",
     "clean": "rimraf dist/*",
     "build": "run-s clean build:*",
@@ -71,6 +72,7 @@
     "eslint-plugin-standard": "^2.0.1",
     "json5": "^0.5.1",
     "npm-run-all": "^4.0.2",
+    "prettier": "^1.2.2",
     "rimraf": "^2.6.1",
     "webpack": "^2.0.0",
     "webpack-merge": "^2.6.1"

@@ -16,10 +16,7 @@ const R = look.wrap(require('ramda'))
 // look.on()
 
 // Import helpers
-import {
-  alwaysCall,
-  validateConfig
-} from './helpers'
+import { alwaysCall, validateConfig } from './helpers'
 // Import API request handlers
 import request from './request'
 // Import API response processors
@@ -27,18 +24,20 @@ import departuresProcessor from './processors/departures'
 import disruptionsProcessor from './processors/disruptions'
 
 // nsApi :: Object -> Object
-export default (config) => {
+export default config => {
   // Validate config
-  config = validateConfig(joi.object({
-    auth: joi.object({
-      username: joi.string().required(),
-      password: joi.string().required()
-    }),
-    timeout: joi.number().integer().min(0).default(5000),
-    apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
-    momentDates: joi.bool().default(false),
-    futures: joi.bool().default(false)
-  }))(config)
+  config = validateConfig(
+    joi.object({
+      auth: joi.object({
+        username: joi.string().required(),
+        password: joi.string().required()
+      }),
+      timeout: joi.number().integer().min(0).default(5000),
+      apiBasePath: joi.string().default('https://webservices.ns.nl/ns-api-'),
+      momentDates: joi.bool().default(false),
+      futures: joi.bool().default(false)
+    })
+  )(config)
 
   const env = {
     config
@@ -46,18 +45,18 @@ export default (config) => {
 
   // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
   // (...args) -> (Future Error Object) | (Promise Error Object)
-  const makeRequest = R.curry((endpoint, paramBuilder, processor) =>
-    (...userArgs) => {
-      const resultFuture = request(endpoint, paramBuilder(...userArgs))
-        .chain(responseFuture => Reader(env =>
-          responseFuture.map(data => processor(data).run(env))
-        ))
-        .run(env)
+  const makeRequest = R.curry((endpoint, paramBuilder, processor) => (
+    ...userArgs
+  ) => {
+    const resultFuture = request(endpoint, paramBuilder(...userArgs))
+      .chain(responseFuture =>
+        Reader(env => responseFuture.map(data => processor(data).run(env)))
+      )
+      .run(env)
 
-      // Return either a Future or a Promise depending on the config
-      return env.config.futures ? resultFuture : resultFuture.promise()
-    }
-  )
+    // Return either a Future or a Promise depending on the config
+    return env.config.futures ? resultFuture : resultFuture.promise()
+  })
 
   // Return api methods
   return {
@@ -84,14 +83,16 @@ export default (config) => {
       // Endpoint
       'storingen',
       // Param builder
-      alwaysCall(R.ifElse(
-        // If
-        R.isNil,
-        // Then
-        R.always({ actual: true }),
-        // Else
-        R.objOf('station')
-      )),
+      alwaysCall(
+        R.ifElse(
+          // If
+          R.isNil,
+          // Then
+          R.always({ actual: true }),
+          // Else
+          R.objOf('station')
+        )
+      ),
       // Processor
       disruptionsProcessor
     ),
@@ -109,10 +110,7 @@ export default (config) => {
         unplanned: true
       }),
       // Processor
-      R.pipe(
-        disruptionsProcessor,
-        R.map(R.prop('planned'))
-      )
+      R.pipe(disruptionsProcessor, R.map(R.prop('planned')))
     )
   }
 }

@@ -7,7 +7,7 @@ import Future from 'fluture'
 
 // See http://stackoverflow.com/a/32749533/1233003
 export class ExtendableError extends Error {
-  constructor (message) {
+  constructor(message) {
     super(message)
     this.name = this.constructor.name
     this.message = message
@@ -15,7 +15,7 @@ export class ExtendableError extends Error {
     if (typeof Error.captureStackTrace === 'function') {
       Error.captureStackTrace(this, this.constructor)
     } else {
-      this.stack = (new Error(message)).stack
+      this.stack = new Error(message).stack
     }
   }
 }
@@ -27,30 +27,28 @@ export const conditionalConvert = R.curry((fn, predicate, value) => {
 
 // TODO: Figure out how to use JSDoc for functions returned by Ramda
 export const booleanToString = R.when(
-  (x) => R.equals(R.type(x), 'Boolean'),
+  x => R.equals(R.type(x), 'Boolean'),
   R.toString
 )
 
 export const parseBoolean = R.when(
-  R.both(
-    (x) => R.equals(R.type(x), 'String'),
-    R.test(/^(true|false)$/i)
-  ),
-  (x) => R.equals(R.toLower(x), 'true')
+  R.both(x => R.equals(R.type(x), 'String'), R.test(/^(true|false)$/i)),
+  x => R.equals(R.toLower(x), 'true')
 )
 
-export const parseDate = (rawDate) => Reader(env => {
-  const date = moment(rawDate, moment.ISO_8601, true)
-  const valid = date.isValid()
+export const parseDate = rawDate =>
+  Reader(env => {
+    const date = moment(rawDate, moment.ISO_8601, true)
+    const valid = date.isValid()
 
-  if (!valid) return rawDate
+    if (!valid) return rawDate
 
-  if (env.config.momentDates) return date
-  else return date.toDate()
-})
+    if (env.config.momentDates) return date
+    else return date.toDate()
+  })
 
 export const asArray = R.unless(
-  (x) => R.equals(R.type(x), 'Array'),
+  x => R.equals(R.type(x), 'Array'),
   R.ifElse(
     // If x is null or undefined
     R.isNil,
@@ -61,7 +59,7 @@ export const asArray = R.unless(
   )
 )
 
-export const translate = (key) => {
+export const translate = key => {
   return strings[key] || key
 }
 
@@ -84,23 +82,18 @@ export const validateConfig = R.curry((schema, config) => {
 })
 
 // This is used to call a Ramda curried function without any arguments
-export const alwaysCall = (fn) =>
-  (...args) =>
-    (args.length === 0) ? fn(undefined) : fn(...args)
+export const alwaysCall = fn => (...args) =>
+  (args.length === 0 ? fn(undefined) : fn(...args))
 
 // Morph one object into another, modifying, adding and removing properties according to a spec
 // (does not mutate the original object)
-export const morph = R.curry((spec, data) => R.pipe(
-  R.converge(
-    R.merge,
-    [
-      R.identity,
-      R.applySpec(spec)
-    ]
-  ),
-  // Remove keys whose value equals undefined
-  R.reject(R.equals(undefined))
-)(data))
+export const morph = R.curry((spec, data) =>
+  R.pipe(
+    R.converge(R.merge, [R.identity, R.applySpec(spec)]),
+    // Remove keys whose value equals undefined
+    R.reject(R.equals(undefined))
+  )(data)
+)
 
 // futureProp :: String -> Object -> Future Error Any
 export const futureProp = Future.encase2(R.prop)
@@ -113,7 +106,10 @@ export const readerToState = R.curry((reader, env) => {
 })
 
 // bakeReader :: Reader r a -> Any -> Any -> Any
-export const bakeReader = R.curry((reader, env, value) => reader(value).run(env))
+export const bakeReader = R.curry((reader, env, value) =>
+  reader(value).run(env)
+)
 
 // trimTabsAndNewlines :: String -> String
-export const trimTabsAndNewlines = (str) => str.replace(/^[\t\r\n]+|[\t\r\n]+$/g, '')
+export const trimTabsAndNewlines = str =>
+  str.replace(/^[\t\r\n]+|[\t\r\n]+$/g, '')

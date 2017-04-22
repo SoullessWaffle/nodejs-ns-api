@@ -2,7 +2,7 @@ import { ExtendableError } from './helpers'
 import R from 'ramda'
 
 export class NsApiError extends ExtendableError {
-  constructor (message, details = {}) {
+  constructor(message, details = {}) {
     super(message)
 
     this.context = details
