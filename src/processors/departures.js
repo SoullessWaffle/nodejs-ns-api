@@ -21,7 +21,7 @@ import { departingTrain } from '../lenses'
 
 // departures :: Object -> Reader Env Object
 export default data =>
-  Reader(env =>
+  Reader(config =>
     R.ifElse(
       // If
       R.pipe(R.view(departingTrain), R.isNil),
@@ -61,7 +61,7 @@ export default data =>
             departureDelayXsd: R.prop('departureDelay'),
             departureTime: R.pipe(
               R.prop('departureTime'),
-              bakeReader(parseDate, env)
+              bakeReader(parseDate, config)
             ),
             route: R.pipe(
               R.propOr(undefined, 'routeText'),

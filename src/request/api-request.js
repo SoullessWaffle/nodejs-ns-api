@@ -10,12 +10,12 @@ const get = Future.fromPromise2(R.binary(axios.get))
 
 // apiRequest :: String -> Object -> Reader Env (Future Error String)
 export default (endpoint, params = {}) =>
-  Reader(env => {
-    const url = env.config.apiBasePath + endpoint
+  Reader(config => {
+    const url = config.apiBasePath + endpoint
 
     const options = {
-      timeout: env.config.timeout,
-      auth: env.config.auth,
+      timeout: config.timeout,
+      auth: config.auth,
       headers: {
         Accept: 'text/xml; charset=UTF-8',
         'Accept-Encoding': 'gzip',

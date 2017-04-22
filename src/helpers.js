@@ -2,7 +2,7 @@ import R from 'ramda'
 import moment from 'moment'
 import joi from 'joi'
 import strings from './strings.json'
-import { Reader, State } from 'ramda-fantasy'
+import { Either, Reader, State } from 'ramda-fantasy'
 import Future from 'fluture'
 
 // See http://stackoverflow.com/a/32749533/1233003
@@ -37,13 +37,13 @@ export const parseBoolean = R.when(
 )
 
 export const parseDate = rawDate =>
-  Reader(env => {
+  Reader(config => {
     const date = moment(rawDate, moment.ISO_8601, true)
     const valid = date.isValid()
 
     if (!valid) return rawDate
 
-    if (env.config.momentDates) return date
+    if (config.momentDates) return date
     else return date.toDate()
   })
 
@@ -63,22 +63,11 @@ export const translate = key => {
   return strings[key] || key
 }
 
-export const processParams = (schema, data) => {
+// validate :: JoiSchema -> Object -> Either Error Object
+export const validate = R.curry((schema, data) => {
   const { error, value } = joi.validate(data, schema)
 
-  if (error != null) throw error
-
-  return value
-}
-
-export const validateConfig = R.curry((schema, config) => {
-  const result = joi.validate(config, schema)
-
-  if (result.error != null) {
-    throw result.error
-  }
-
-  return result.value
+  return R.isNil(error) ? Either.Right(value) : Either.Left(error)
 })
 
 // This is used to call a Ramda curried function without any arguments

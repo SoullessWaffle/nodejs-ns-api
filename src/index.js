@@ -16,7 +16,7 @@ const R = look.wrap(require('ramda'))
 // look.on()
 
 // Import helpers
-import { alwaysCall, validateConfig } from './helpers'
+import { alwaysCall, validate } from './helpers'
 // Import API request handlers
 import request from './request'
 // Import API response processors
@@ -26,7 +26,7 @@ import disruptionsProcessor from './processors/disruptions'
 // nsApi :: Object -> Object
 export default config => {
   // Validate config
-  config = validateConfig(
+  validate(
     joi.object({
       auth: joi.object({
         username: joi.string().required(),
@@ -37,11 +37,14 @@ export default config => {
       momentDates: joi.bool().default(false),
       futures: joi.bool().default(false)
     })
-  )(config)
-
-  const env = {
-    config
-  }
+  )(config).either(
+    error => {
+      throw error
+    },
+    value => {
+      config = value
+    }
+  )
 
   // makeRequest :: String -> (...args -> Object) -> (Object -> Reader Env Object) ->
   // (...args) -> (Future Error Object) | (Promise Error Object)
@@ -50,12 +53,14 @@ export default config => {
   ) => {
     const resultFuture = request(endpoint, paramBuilder(...userArgs))
       .chain(responseFuture =>
-        Reader(env => responseFuture.map(data => processor(data).run(env)))
+        Reader(config =>
+          responseFuture.map(data => processor(data).run(config))
+        )
       )
-      .run(env)
+      .run(config)
 
     // Return either a Future or a Promise depending on the config
-    return env.config.futures ? resultFuture : resultFuture.promise()
+    return config.futures ? resultFuture : resultFuture.promise()
   })
 
   // Return api methods
